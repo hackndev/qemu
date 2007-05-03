@@ -126,7 +126,7 @@ static void pxa2xx_timer_update4(void *opaque, uint64_t now_qemu, int n)
         counter = counters[n];
 
     if (!s->tm4[counter].freq) {
-        qemu_del_timer(s->timer[n].qtimer);
+        //qemu_del_timer(s->timer[n].qtimer);
         return;
     }
 

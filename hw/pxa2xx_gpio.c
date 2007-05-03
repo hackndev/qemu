@@ -175,8 +175,9 @@ static uint32_t pxa2xx_gpio_read(void *opaque, target_phys_addr_t offset)
         return s->status[bank];
 
     default:
-        cpu_abort(cpu_single_env,
+        fprintf(stderr,
                 "%s: Bad offset " REG_FMT "\n", __FUNCTION__, offset);
+        return 0;
     }
 
     return 0;

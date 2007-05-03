@@ -216,6 +216,11 @@ OPSUB(sub, sbc, T0, T0, T1)
 
 OPSUB(rsb, rsc, T0, T1, T0)
 
+void OPPROTO op_dump_pc(void)
+{
+	helper_dump_pc(PARAM1);
+}
+
 void OPPROTO op_andl_T0_T1(void)
 {
     T0 &= T1;

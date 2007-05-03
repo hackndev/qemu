@@ -3084,6 +3084,8 @@ static uint8_t md_attr_read(void *opaque, uint16_t at)
 
     at -= s->attr_base;
 
+    printf("IDE attr read: %x\n", at);
+
     switch (at) {
     case 0x00:	/* Configuration Option Register */
         return s->opt;
@@ -3109,6 +3111,8 @@ static void md_attr_write(void *opaque, uint16_t at, uint8_t value)
 {
     struct md_s *s = (struct md_s *) opaque;
     at -= s->attr_base;
+    
+    printf("IDE attr write: %x := %x\n", at, value);
 
     switch (at) {
     case 0x00:	/* Configuration Option Register */
@@ -3136,11 +3140,24 @@ static void md_attr_write(void *opaque, uint16_t at, uint8_t value)
     }
 }
 
+static int flaggy = 0;
 static uint16_t md_common_read(void *opaque, uint16_t at)
 {
     struct md_s *s = (struct md_s *) opaque;
     uint16_t ret;
     at -= s->io_base;
+
+    printf("IDE read: %x\n", at);
+    
+    if (at == 0x17 && !flaggy) {
+       flaggy = 1;
+       printf("force returning 0x50\n");
+       return 0x50;
+    }
+
+    if ((s->opt & OPT_MODE) != OPT_MODE_IOMAP16) {
+	printf("not iomap16\n");
+    }
 
     switch (s->opt & OPT_MODE) {
     case OPT_MODE_MMAP:
@@ -3189,7 +3206,9 @@ static uint16_t md_common_read(void *opaque, uint16_t at)
     case 0xf:	/* Device Address */
         return 0xc2 | ((~s->ide->select << 2) & 0x3c);
     default:
-        return ide_ioport_read(s->ide, at);
+        ret = ide_ioport_read(s->ide, at);
+	printf("ret = %x\n", ret);
+    	return ret;
     }
 
     return 0;
@@ -3199,6 +3218,8 @@ static void md_common_write(void *opaque, uint16_t at, uint16_t value)
 {
     struct md_s *s = (struct md_s *) opaque;
     at -= s->io_base;
+
+    printf("IDE write: %x := %x\n", at, value);
 
     switch (s->opt & OPT_MODE) {
     case OPT_MODE_MMAP:

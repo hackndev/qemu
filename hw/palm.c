@@ -141,7 +141,7 @@ static void ld_gpio_setup(struct pxa2xx_state_s *cpu)
     pxa2xx_gpio_set(cpu->gpio, 9, 0);
     pxa2xx_gpio_set(cpu->gpio, 10, 1);
     pxa2xx_gpio_set(cpu->gpio, 11, 0);
-    pxa2xx_gpio_set(cpu->gpio, 12, 0);
+    pxa2xx_gpio_set(cpu->gpio, 12, 0); /* <--- power switch, for hard reset :D */
     pxa2xx_gpio_set(cpu->gpio, 13, 0);
     pxa2xx_gpio_set(cpu->gpio, 14, 0);
     pxa2xx_gpio_set(cpu->gpio, 15, 0);
@@ -220,19 +220,22 @@ static void ld_init(int ram_size, int vga_ram_size, int boot_device,
 {
     uint32_t ld_ram = 0x02000000;
     uint32_t ld_rom = 0x00080000;
+    uint32_t ld_ram_int = 0x00040000;
     struct pxa2xx_state_s *cpu;
 
     cpu = pxa270_init(ds, "pxa270-c0");
 
     /* Setup memory */
-    if (ram_size < ld_ram + ld_rom) {
+    if (ram_size < ld_ram + ld_rom + ld_ram_int) {
         fprintf(stderr, "This platform requires %i bytes of memory\n",
-                        ld_ram + ld_rom);
+                        ld_ram + ld_rom + ld_ram_int);
         exit(1);
     }
     cpu_register_physical_memory(PXA2XX_RAM_BASE, ld_ram, IO_MEM_RAM);
 
     cpu_register_physical_memory(0, ld_rom, ld_ram | IO_MEM_ROM);
+
+    cpu_register_physical_memory(0x5c000000, 0x40000, (ld_ram + ld_rom) | IO_MEM_RAM);
 
     /* Setup peripherals */
     ld_gpio_setup(cpu);
@@ -244,6 +247,7 @@ static void ld_init(int ram_size, int vga_ram_size, int boot_device,
     cpu->env->regs[15] = 0;
     //cpu->env->regs[15] = PXA2XX_RAM_BASE;
 
+    memset(phys_ram_base, 0, ld_ram);
     memset(phys_ram_base + ld_ram, 0, ld_rom);
     load_image("brahma-bootrom", phys_ram_base + ld_ram);
 

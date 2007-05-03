@@ -61,6 +61,8 @@ uint32_t helper_get_cp(CPUState *, uint32_t);
 void helper_set_cp15(CPUState *, uint32_t, uint32_t);
 uint32_t helper_get_cp15(CPUState *, uint32_t);
 
+void helper_dump_pc(target_ulong PC);
+
 void cpu_loop_exit(void);
 
 void raise_exception(int);

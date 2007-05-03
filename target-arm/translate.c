@@ -2206,6 +2206,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
 {
     unsigned int cond, insn, val, op1, i, shift, rm, rs, rn, rd, sh;
     
+    //gen_op_dump_pc(s->pc);
     insn = ldl_code(s->pc);
     s->pc += 4;
     
@@ -2963,6 +2964,8 @@ static void disas_thumb_insn(DisasContext *s)
     uint32_t val, insn, op, rm, rn, rd, shift, cond;
     int32_t offset;
     int i;
+
+    //gen_op_dump_pc(s->pc);
 
     insn = lduw_code(s->pc);
     s->pc += 2;

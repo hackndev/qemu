@@ -10,6 +10,11 @@ static inline void set_feature(CPUARMState *env, int feature)
     env->features |= 1u << feature;
 }
 
+void helper_dump_pc(target_ulong pc)
+{
+	printf("PC = %08x\n", pc);
+}
+
 static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
 {
     env->cp15.c0_cpuid = id;
