@@ -105,14 +105,29 @@ static void ld_hddpwr_switch(int line, int level, void *opaque)
 #define LD_GPIO_BL_PWR		84
 #define LD_GPIO_UART_PWR	91
 #define LD_GPIO_ORANGE_LED	94
+#define LD_GPIO_HDD_IRQ 	95
 #define LD_GPIO_LCD2_PWR	96
 #define LD_GPIO_HDD_RST		98
 #define LD_GPIO_USB_PWR		99
 #define LD_GPIO_IR_PWR		108
 #define LD_GPIO_HDD_PWR		115
 
+static void ld_pcmcia_cb(void *opaque, int line, int level)
+{
+    struct pxa2xx_state_s *cpu = (struct pxa2xx_state_s *)opaque;
+    if (line == 0) {
+        pxa2xx_gpio_set(cpu->gpio, LD_GPIO_HDD_IRQ, !level);
+    }
+}
+
 static void ld_gpio_setup(struct pxa2xx_state_s *cpu)
 {
+    qemu_irq *pcmcia_cb;
+
+    /* PCMCIA signals: card's IRQ and Card-Detect*/
+    pcmcia_cb = qemu_allocate_irqs(ld_pcmcia_cb, cpu, 2);
+    pxa2xx_pcmcia_set_irq_cb(cpu->pcmcia[0], pcmcia_cb[0], pcmcia_cb[1]);
+
     /* Input pins levels */
     pxa2xx_gpio_set(cpu->gpio, 0, 1);
     pxa2xx_gpio_set(cpu->gpio, 1, 1);
@@ -226,15 +241,16 @@ static void ld_init(int ram_size, int vga_ram_size, int boot_device,
     ld_microdrive_attach(cpu);
 
     /* Setup initial (reset) machine state */
-    //cpu->env->regs[15] = 0;
-    cpu->env->regs[15] = PXA2XX_RAM_BASE;
+    cpu->env->regs[15] = 0;
+    //cpu->env->regs[15] = PXA2XX_RAM_BASE;
 
     memset(phys_ram_base + ld_ram, 0, ld_rom);
-    //load_image("../brahma-bootrom", phys_ram_base + ld_ram);
+    load_image("brahma-bootrom", phys_ram_base + ld_ram);
 
-    arm_load_kernel(cpu->env, ld_ram, kernel_filename, kernel_cmdline,
+    printf("XXX %x\n", phys_ram_base);
+    //arm_load_kernel(cpu->env, ld_ram, kernel_filename, kernel_cmdline,
     //                initrd_filename, 909, PXA2XX_RAM_BASE);
-                    initrd_filename, 835, PXA2XX_RAM_BASE);
+    //                initrd_filename, 835, PXA2XX_RAM_BASE);
  
 }
 
