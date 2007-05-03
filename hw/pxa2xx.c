@@ -168,8 +168,9 @@ static void pxa2xx_cm_write(void *opaque, target_phys_addr_t addr,
         break;
 
     case OSCC:
-        s->cm_regs[addr >> 2] &= ~0x6e;
-        s->cm_regs[addr >> 2] |= value & 0x6e;
+        s->cm_regs[OSCC >> 2] &= ~0x6e;
+        s->cm_regs[OSCC >> 2] |= value & 0x6e;
+        s->cm_regs[OSCC >> 2] |= (value >> 1) & 1; /* Oscillator is now stable */
         break;
 
     default:
