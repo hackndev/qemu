@@ -3063,7 +3063,8 @@ static void md_set_irq(void *opaque, int irq, int level)
 
 static void md_reset(struct md_s *s)
 {
-    s->opt = OPT_MODE_MMAP;
+    //s->opt = OPT_MODE_MMAP;
+    s->opt = OPT_MODE_IOMAP16; // FIXME: hack for palmld machine
     s->stat = 0;
     s->pins = 0;
     s->cycle = 0;
