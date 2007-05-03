@@ -233,8 +233,8 @@ static void ld_init(int ram_size, int vga_ram_size, int boot_device,
     //load_image("../brahma-bootrom", phys_ram_base + ld_ram);
 
     arm_load_kernel(cpu->env, ld_ram, kernel_filename, kernel_cmdline,
-                    initrd_filename, 909, PXA2XX_RAM_BASE);
-    //                initrd_filename, 835, PXA2XX_RAM_BASE);
+    //                initrd_filename, 909, PXA2XX_RAM_BASE);
+                    initrd_filename, 835, PXA2XX_RAM_BASE);
  
 }
 
