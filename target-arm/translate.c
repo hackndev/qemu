@@ -2205,8 +2205,12 @@ static void gen_exception_return(DisasContext *s)
 static void disas_arm_insn(CPUState * env, DisasContext *s)
 {
     unsigned int cond, insn, val, op1, i, shift, rm, rs, rn, rd, sh;
-    
-    //gen_op_dump_pc(s->pc);
+   
+#ifdef TRACE_PC
+    if ((s->pc & 0xfff00000) != 0xa1200000) /* ignore LD bootloader */
+    	gen_op_dump_pc(s->pc);
+#endif
+
     insn = ldl_code(s->pc);
     s->pc += 4;
     
@@ -2965,7 +2969,10 @@ static void disas_thumb_insn(DisasContext *s)
     int32_t offset;
     int i;
 
-    //gen_op_dump_pc(s->pc);
+#ifdef TRACE_PC
+    if ((s->pc & 0xfff00000) != 0xa1200000) /* ignore bootloader on LD */
+    	gen_op_dump_pc(s->pc | 1); /* make it odd so we know this was thumb code */
+#endif
 
     insn = lduw_code(s->pc);
     s->pc += 2;

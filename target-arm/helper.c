@@ -12,7 +12,15 @@ static inline void set_feature(CPUARMState *env, int feature)
 
 void helper_dump_pc(target_ulong pc)
 {
-	printf("PC = %08x\n", pc);
+#ifdef TRACE_PC
+	if (pc & 1) { // thumb
+		printf("PCt= %08x\n", pc);
+	} else { // arm
+		printf("PC = %08x\n", pc);
+	}
+
+	fflush(stdout);
+#endif
 }
 
 static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
@@ -352,7 +360,7 @@ void do_interrupt(CPUARMState *env)
 static inline int check_ap(CPUState *env, int ap, int domain, int access_type,
                            int is_user)
 {
-  if (domain == 3)
+  if (domain == 3) 
     return PAGE_READ | PAGE_WRITE;
 
   switch (ap) {
@@ -465,7 +473,13 @@ static int get_phys_addr(CPUState *env, uint32_t address, int access_type,
             }
             code = 15;
         }
-        *prot = check_ap(env, ap, domain, access_type, is_user);
+	if (address < 0x4000) { /* disable memory prot for first page,
+				   this seems to be an oddity of the LD
+				   */
+		*prot = PAGE_READ | PAGE_WRITE;
+	} else {
+        	*prot = check_ap(env, ap, domain, access_type, is_user);
+	}
         if (!*prot) {
             /* Access permission fault.  */
             goto do_fault;
@@ -689,7 +703,8 @@ void helper_set_cp15(CPUState *env, uint32_t insn, uint32_t val)
     return;
 bad_reg:
     /* ??? For debugging only.  Should raise illegal instruction exception.  */
-    cpu_abort(env, "Unimplemented cp15 register write\n");
+    //cpu_abort(env, "Unimplemented cp15 register write\n");
+    fprintf(stderr, "Unimplemented cp15 register write\n");
 }
 
 uint32_t helper_get_cp15(CPUState *env, uint32_t insn)
@@ -793,7 +808,8 @@ uint32_t helper_get_cp15(CPUState *env, uint32_t insn)
     }
 bad_reg:
     /* ??? For debugging only.  Should raise illegal instruction exception.  */
-    cpu_abort(env, "Unimplemented cp15 register read\n");
+    //cpu_abort(env, "Unimplemented cp15 register read\n");
+    fprintf(stderr, "Unimplemented cp15 register read\n");
     return 0;
 }
 
