@@ -25,6 +25,10 @@ static void ld_microdrive_attach(struct pxa2xx_state_s *cpu)
 }
 
 /* Other peripherals */
+static void tc_gpio_switch(int line, int level, void *opaque)
+{
+    ld_printf("PalmTC GPIO %i is now %s.\n", line, level ? "HIGH" : "LOW");
+}
 
 static void ld_btpwr1_switch(int line, int level, void *opaque)
 {
@@ -214,6 +218,153 @@ static void ld_gpio_setup(struct pxa2xx_state_s *cpu)
                     ld_hddpwr_switch, cpu);
 }
 
+static void tc_gpio_setup(struct pxa2xx_state_s *cpu)
+{
+    qemu_irq *pcmcia_cb;
+    int g;
+
+    /* PCMCIA signals: card's IRQ and Card-Detect*/
+    pcmcia_cb = qemu_allocate_irqs(ld_pcmcia_cb, cpu, 2);
+    pxa2xx_pcmcia_set_irq_cb(cpu->pcmcia[0], pcmcia_cb[0], pcmcia_cb[1]);
+
+    /* Input pins levels */
+    pxa2xx_gpio_set(cpu->gpio, 0, 1);
+    pxa2xx_gpio_set(cpu->gpio, 1, 0);
+    pxa2xx_gpio_set(cpu->gpio, 2, 1);
+    pxa2xx_gpio_set(cpu->gpio, 3, 0);
+    pxa2xx_gpio_set(cpu->gpio, 4, 1);
+    pxa2xx_gpio_set(cpu->gpio, 5, 0);
+    pxa2xx_gpio_set(cpu->gpio, 6, 1);
+    pxa2xx_gpio_set(cpu->gpio, 7, 1);
+    pxa2xx_gpio_set(cpu->gpio, 8, 1);
+    pxa2xx_gpio_set(cpu->gpio, 9, 1);
+    pxa2xx_gpio_set(cpu->gpio, 10, 1);
+    pxa2xx_gpio_set(cpu->gpio, 11, 0);
+    pxa2xx_gpio_set(cpu->gpio, 12, 0);
+    pxa2xx_gpio_set(cpu->gpio, 13, 0);
+    pxa2xx_gpio_set(cpu->gpio, 14, 0);
+    pxa2xx_gpio_set(cpu->gpio, 15, 0);
+    pxa2xx_gpio_set(cpu->gpio, 16, 1);
+    pxa2xx_gpio_set(cpu->gpio, 17, 0);
+    pxa2xx_gpio_set(cpu->gpio, 18, 0);
+    pxa2xx_gpio_set(cpu->gpio, 19, 0);
+    pxa2xx_gpio_set(cpu->gpio, 20, 0);
+    pxa2xx_gpio_set(cpu->gpio, 21, 0);
+    pxa2xx_gpio_set(cpu->gpio, 22, 0);
+    pxa2xx_gpio_set(cpu->gpio, 23, 0);
+    pxa2xx_gpio_set(cpu->gpio, 24, 0);
+    pxa2xx_gpio_set(cpu->gpio, 25, 0);
+    pxa2xx_gpio_set(cpu->gpio, 26, 0);
+    pxa2xx_gpio_set(cpu->gpio, 27, 0);
+    pxa2xx_gpio_set(cpu->gpio, 28, 1);
+    pxa2xx_gpio_set(cpu->gpio, 29, 0);
+    pxa2xx_gpio_set(cpu->gpio, 30, 0);
+    pxa2xx_gpio_set(cpu->gpio, 31, 0);
+
+    pxa2xx_gpio_set(cpu->gpio, 32, 1);
+    pxa2xx_gpio_set(cpu->gpio, 33, 0);
+    pxa2xx_gpio_set(cpu->gpio, 34, 1);
+    pxa2xx_gpio_set(cpu->gpio, 35, 1);
+    pxa2xx_gpio_set(cpu->gpio, 36, 0);
+    pxa2xx_gpio_set(cpu->gpio, 37, 0);
+    pxa2xx_gpio_set(cpu->gpio, 38, 1);
+    pxa2xx_gpio_set(cpu->gpio, 39, 1);
+    pxa2xx_gpio_set(cpu->gpio, 40, 1);
+    pxa2xx_gpio_set(cpu->gpio, 41, 1);
+    pxa2xx_gpio_set(cpu->gpio, 42, 1);
+    pxa2xx_gpio_set(cpu->gpio, 43, 1);
+    pxa2xx_gpio_set(cpu->gpio, 44, 1);
+    pxa2xx_gpio_set(cpu->gpio, 45, 0);
+    pxa2xx_gpio_set(cpu->gpio, 46, 1);
+    pxa2xx_gpio_set(cpu->gpio, 47, 0);
+    pxa2xx_gpio_set(cpu->gpio, 48, 1);
+    pxa2xx_gpio_set(cpu->gpio, 49, 1);
+    pxa2xx_gpio_set(cpu->gpio, 50, 1);
+    pxa2xx_gpio_set(cpu->gpio, 51, 1);
+    pxa2xx_gpio_set(cpu->gpio, 52, 1);
+    pxa2xx_gpio_set(cpu->gpio, 53, 1);
+    pxa2xx_gpio_set(cpu->gpio, 54, 0);
+    pxa2xx_gpio_set(cpu->gpio, 55, 1);
+    pxa2xx_gpio_set(cpu->gpio, 56, 0);
+    pxa2xx_gpio_set(cpu->gpio, 57, 0);
+    pxa2xx_gpio_set(cpu->gpio, 58, 0);
+    pxa2xx_gpio_set(cpu->gpio, 59, 0);
+    pxa2xx_gpio_set(cpu->gpio, 60, 0);
+    pxa2xx_gpio_set(cpu->gpio, 61, 0);
+    pxa2xx_gpio_set(cpu->gpio, 62, 0);
+    pxa2xx_gpio_set(cpu->gpio, 63, 0);
+
+    pxa2xx_gpio_set(cpu->gpio, 64, 0);
+    pxa2xx_gpio_set(cpu->gpio, 65, 0);
+    pxa2xx_gpio_set(cpu->gpio, 66, 0);
+    pxa2xx_gpio_set(cpu->gpio, 67, 0);
+    pxa2xx_gpio_set(cpu->gpio, 68, 0);
+    pxa2xx_gpio_set(cpu->gpio, 69, 0);
+    pxa2xx_gpio_set(cpu->gpio, 70, 0);
+    pxa2xx_gpio_set(cpu->gpio, 71, 0);
+    pxa2xx_gpio_set(cpu->gpio, 72, 0);
+    pxa2xx_gpio_set(cpu->gpio, 73, 0);
+    pxa2xx_gpio_set(cpu->gpio, 74, 1);
+    pxa2xx_gpio_set(cpu->gpio, 75, 1);
+    pxa2xx_gpio_set(cpu->gpio, 76, 0);
+    pxa2xx_gpio_set(cpu->gpio, 77, 1);
+    pxa2xx_gpio_set(cpu->gpio, 78, 0);
+    pxa2xx_gpio_set(cpu->gpio, 79, 0);
+    pxa2xx_gpio_set(cpu->gpio, 80, 0);
+    pxa2xx_gpio_set(cpu->gpio, 81, 1);
+    pxa2xx_gpio_set(cpu->gpio, 82, 1);
+    pxa2xx_gpio_set(cpu->gpio, 83, 1);
+    pxa2xx_gpio_set(cpu->gpio, 84, 1);
+    pxa2xx_gpio_set(cpu->gpio, 85, 1);
+    pxa2xx_gpio_set(cpu->gpio, 86, 1);
+    pxa2xx_gpio_set(cpu->gpio, 87, 1);
+    pxa2xx_gpio_set(cpu->gpio, 88, 1);
+    pxa2xx_gpio_set(cpu->gpio, 89, 1);
+    pxa2xx_gpio_set(cpu->gpio, 90, 0);
+    pxa2xx_gpio_set(cpu->gpio, 91, 0);
+    pxa2xx_gpio_set(cpu->gpio, 92, 0);
+    pxa2xx_gpio_set(cpu->gpio, 93, 0);
+    pxa2xx_gpio_set(cpu->gpio, 94, 0);
+    pxa2xx_gpio_set(cpu->gpio, 95, 0);
+
+    pxa2xx_gpio_set(cpu->gpio, 96, 1);
+    pxa2xx_gpio_set(cpu->gpio, 97, 1);
+    pxa2xx_gpio_set(cpu->gpio, 98, 1);
+    pxa2xx_gpio_set(cpu->gpio, 99, 0);
+    pxa2xx_gpio_set(cpu->gpio, 100, 1);
+    pxa2xx_gpio_set(cpu->gpio, 101, 0);
+    pxa2xx_gpio_set(cpu->gpio, 102, 1);
+    pxa2xx_gpio_set(cpu->gpio, 103, 1);
+    pxa2xx_gpio_set(cpu->gpio, 104, 1);
+    pxa2xx_gpio_set(cpu->gpio, 105, 1);
+    pxa2xx_gpio_set(cpu->gpio, 106, 1);
+    pxa2xx_gpio_set(cpu->gpio, 107, 0);
+    pxa2xx_gpio_set(cpu->gpio, 108, 0);
+    pxa2xx_gpio_set(cpu->gpio, 109, 0);
+    pxa2xx_gpio_set(cpu->gpio, 110, 0);
+    pxa2xx_gpio_set(cpu->gpio, 111, 0);
+    pxa2xx_gpio_set(cpu->gpio, 112, 1);
+    pxa2xx_gpio_set(cpu->gpio, 113, 0);
+    pxa2xx_gpio_set(cpu->gpio, 114, 0);
+    pxa2xx_gpio_set(cpu->gpio, 115, 0);
+    pxa2xx_gpio_set(cpu->gpio, 116, 0);
+    pxa2xx_gpio_set(cpu->gpio, 117, 0);
+    pxa2xx_gpio_set(cpu->gpio, 118, 0);
+    pxa2xx_gpio_set(cpu->gpio, 119, 0);
+    pxa2xx_gpio_set(cpu->gpio, 120, 0);
+
+    for (g=0;g<=84;g++)
+    pxa2xx_gpio_handler_set(cpu->gpio, g,
+                    tc_gpio_switch, cpu);
+
+}
+
+/*****
+ * Hacky AC97 controller code. This is just enough to trick the OS into
+ * thinking there's a WM9712 attached to the LD
+ * we should write proper pxa2xx_ac97.c device.
+ */
+
 #define GSR     0x1c
 
 uint16_t pac_reg[63];
@@ -276,13 +427,15 @@ static CPUWriteMemoryFunc *ac97_writefn[] = {
     ac97_write
 };
 
+
+/*****
+ * Hacky keypad controller code. This is to initiate a hard reset on the LD
+ * we should write proper pxa2xx_keypad.c device.
+ */
 uint32_t key_reg[14];
-
 #define KPC 0
-
 static uint32_t key_read(void *opaque, target_phys_addr_t offset)
 {
-    int reg;
     offset &= 0xfff;
 
     uint32_t ret =  key_reg[offset>>2];
@@ -290,12 +443,12 @@ static uint32_t key_read(void *opaque, target_phys_addr_t offset)
     return ret;
 
 }
-int xxx=0;
+
 static void key_write(void *opaque,
                 target_phys_addr_t offset, uint32_t value)
 {
+    static int waithack=0;
     struct pxa2xx_state_s *cpu = (struct pxa2xx_state_s *)opaque;
-    int reg;
 
     offset &= 0xfff;
     printf("q: keypad %x := %x\n", offset, value);
@@ -304,11 +457,11 @@ static void key_write(void *opaque,
     if (offset == 0) { // KPC
     	if (value & (1<<15)) { // manual scan column 2
 		printf("NAV UP!\n");
-		xxx++;
-		if (xxx > 20 && xxx < 40 && 0) {
-    			pxa2xx_gpio_set(cpu->gpio, 12, 0); /* <--- power switch, for hard reset :D */
+		waithack++;
+		if (waithack > 20 && waithack < 40 && 0) {
+    			pxa2xx_gpio_set(cpu->gpio, 12, 0); 
 			printf("*******\n");
-		} else if (xxx > 40 || 1) {
+		} else if (waithack > 40 || 1) {
 			key_reg[0x18>>2] = 1<<0; // nav-up
 		}
 	} else {
@@ -425,6 +578,49 @@ static void t650_init(int ram_size, int vga_ram_size, int boot_device,
  
 }
 
+static void tc_init(int ram_size, int vga_ram_size, int boot_device,
+                DisplayState *ds, const char **fd_filename, int snapshot,
+                const char *kernel_filename, const char *kernel_cmdline,
+                const char *initrd_filename)
+{
+    uint32_t tc_ram = 0x04000000;
+    uint32_t tc_rom = 0x01000000;
+    struct pxa2xx_state_s *cpu;
+
+    cpu = pxa255_init(ds);
+
+    /* Setup memory */
+    if (ram_size < tc_ram + tc_rom) {
+        fprintf(stderr, "This platform requires %i bytes of memory\n",
+                        tc_ram + tc_rom);
+        exit(1);
+    }
+    cpu_register_physical_memory(PXA2XX_RAM_BASE, tc_ram, IO_MEM_RAM);
+
+    cpu_register_physical_memory(0, tc_rom, tc_ram | IO_MEM_ROM);
+
+    /* Setup peripherals */
+    tc_gpio_setup(cpu);
+
+    /* Setup initial (reset) machine state */
+    cpu->env->regs[15] = 0;
+//    cpu->env->regs[15] = PXA2XX_RAM_BASE;
+
+    memset(phys_ram_base, 0, tc_ram);
+    memset(phys_ram_base + tc_ram, 0, tc_rom);
+    load_image("palmtc.rom", phys_ram_base + tc_ram);
+
+    arm_load_kernel(cpu->env, tc_ram, kernel_filename, kernel_cmdline,
+            initrd_filename, 918 /* THIS IS ARM_ID!! */, PXA2XX_RAM_BASE);
+ 
+}
+
+
+QEMUMachine palmtc_machine = {
+    "palmtc",
+    "Palm Tungsten|C (PXA255)",
+    tc_init,
+};
 
 QEMUMachine palmld_machine = {
     "palmld",
