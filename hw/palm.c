@@ -58,7 +58,9 @@ static void ld_btpwr2_switch(int line, int level, void *opaque)
 
 static void ld_blpwr_switch(int line, int level, void *opaque)
 {
-    ld_printf("LCD backlight %s.\n", level ? "on" : "off");
+    struct pxa2xx_state_s *cpu = opaque;
+
+    ld_printf("%x LCD backlight %s.\n", cpu->env->regs[15], level ? "on" : "off");
 }
 
 static void ld_serialpwr_switch(int line, int level, void *opaque)
@@ -139,7 +141,7 @@ static void ld_gpio_setup(struct pxa2xx_state_s *cpu)
     pxa2xx_gpio_set(cpu->gpio, 7, 1);
     pxa2xx_gpio_set(cpu->gpio, 8, 1);
     pxa2xx_gpio_set(cpu->gpio, 9, 0);
-    pxa2xx_gpio_set(cpu->gpio, 10, 1);
+    pxa2xx_gpio_set(cpu->gpio, 10, 1); /* hotsync, deassert for recovery console */
     pxa2xx_gpio_set(cpu->gpio, 11, 0);
     pxa2xx_gpio_set(cpu->gpio, 12, 0); /* <--- power switch, for hard reset :D */
     pxa2xx_gpio_set(cpu->gpio, 13, 0);
@@ -174,6 +176,7 @@ static void ld_gpio_setup(struct pxa2xx_state_s *cpu)
     pxa2xx_gpio_set(cpu->gpio, 100, 0);
     pxa2xx_gpio_set(cpu->gpio, 101, 0);
     pxa2xx_gpio_set(cpu->gpio, 102, 0);
+    pxa2xx_gpio_set(cpu->gpio, 104, 0);
     pxa2xx_gpio_set(cpu->gpio, 106, 0);
     pxa2xx_gpio_set(cpu->gpio, 107, 0);
     pxa2xx_gpio_set(cpu->gpio, 116, 0);
@@ -211,6 +214,125 @@ static void ld_gpio_setup(struct pxa2xx_state_s *cpu)
                     ld_hddpwr_switch, cpu);
 }
 
+#define GSR     0x1c
+
+uint16_t pac_reg[63];
+
+static void ac97_init()
+{
+    pac_reg[0x1c>>1] = 0x8000; /* Record Gain */
+
+    pac_reg[0x7c>>1] = 0x574d; /* Vendor ID1: 'W' 'M' */
+    pac_reg[0x7e>>1] = 0x4c12; /* Vendor ID2: 'L' 12 */
+
+}
+
+static uint32_t ac97_read(void *opaque, target_phys_addr_t offset)
+{
+    int reg;
+    offset &= 0xfff;
+
+    if (offset > 0x200) { /* primary audio codec register */
+        reg = (offset - 0x200) >> 1;
+        printf("q: Primary audio codec reg: %x\n", reg); 
+        return pac_reg[reg>>1];
+    }
+
+
+    switch(offset) {
+    case 0x1c:
+        return (1 << 19) | (1 << 18); // CDONE | SDONE
+        break;
+    default:
+        printf("q: AC97 read from offset: %x\n", offset);
+    }
+
+    return 0x1234578;
+}
+
+static void ac97_write(void *opaque,
+                target_phys_addr_t offset, uint32_t value)
+{
+    int reg;
+    offset &= 0xfff;
+    if (offset > 0x200) { /* primary audio codec register */
+        reg = (offset - 0x200) >> 1;
+        printf("q: Primary audio codec write: %x := %x\n", reg, value);
+        pac_reg[reg>>1] = value & 0xffff;
+        return;
+    }
+    printf("q: AC97 %x := %x\n", offset, value);
+}
+
+static CPUReadMemoryFunc *ac97_readfn[] = {
+    ac97_read,
+    ac97_read,
+    ac97_read
+};
+
+static CPUWriteMemoryFunc *ac97_writefn[] = {
+    ac97_write,
+    ac97_write,
+    ac97_write
+};
+
+uint32_t key_reg[14];
+
+#define KPC 0
+
+static uint32_t key_read(void *opaque, target_phys_addr_t offset)
+{
+    int reg;
+    offset &= 0xfff;
+
+    uint32_t ret =  key_reg[offset>>2];
+    printf("q: keypad read from offset: %x (%x)\n", offset, ret);
+    return ret;
+
+}
+int xxx=0;
+static void key_write(void *opaque,
+                target_phys_addr_t offset, uint32_t value)
+{
+    struct pxa2xx_state_s *cpu = (struct pxa2xx_state_s *)opaque;
+    int reg;
+
+    offset &= 0xfff;
+    printf("q: keypad %x := %x\n", offset, value);
+    key_reg[offset>>2] = value;
+    
+    if (offset == 0) { // KPC
+    	if (value & (1<<15)) { // manual scan column 2
+		printf("NAV UP!\n");
+		xxx++;
+		if (xxx > 20 && xxx < 40 && 0) {
+    			pxa2xx_gpio_set(cpu->gpio, 12, 0); /* <--- power switch, for hard reset :D */
+			printf("*******\n");
+		} else if (xxx > 40 || 1) {
+			key_reg[0x18>>2] = 1<<0; // nav-up
+		}
+	} else {
+		key_reg[0x18>>2] = 0; // nav-up
+	}
+
+    }
+
+
+}
+
+static CPUReadMemoryFunc *key_readfn[] = {
+    key_read,
+    key_read,
+    key_read
+};
+
+static CPUWriteMemoryFunc *key_writefn[] = {
+    key_write,
+    key_write,
+    key_write
+};
+
+
 /* Board init.  */
 
 static void ld_init(int ram_size, int vga_ram_size, int boot_device,
@@ -237,6 +359,17 @@ static void ld_init(int ram_size, int vga_ram_size, int boot_device,
 
     cpu_register_physical_memory(0x5c000000, 0x40000, (ld_ram + ld_rom) | IO_MEM_RAM);
 
+    int iomemtype = cpu_register_io_memory(0, ac97_readfn,
+                    ac97_writefn, NULL);
+    cpu_register_physical_memory(0x40500000, 0x00000fff, iomemtype);
+
+    iomemtype = cpu_register_io_memory(0, key_readfn,
+                    key_writefn, cpu);
+    cpu_register_physical_memory(0x41500000, 0x00000fff, iomemtype);
+
+
+    ac97_init();
+
     /* Setup peripherals */
     ld_gpio_setup(cpu);
 
@@ -245,16 +378,14 @@ static void ld_init(int ram_size, int vga_ram_size, int boot_device,
 
     /* Setup initial (reset) machine state */
     cpu->env->regs[15] = 0;
-    //cpu->env->regs[15] = PXA2XX_RAM_BASE;
+    cpu->env->regs[15] = PXA2XX_RAM_BASE;
 
     memset(phys_ram_base, 0, ld_ram);
     memset(phys_ram_base + ld_ram, 0, ld_rom);
-    load_image("brahma-bootrom", phys_ram_base + ld_ram);
+    //load_image("brahma-bootrom", phys_ram_base + ld_ram);
 
-    printf("XXX %x\n", phys_ram_base);
-    //arm_load_kernel(cpu->env, ld_ram, kernel_filename, kernel_cmdline,
-    //                initrd_filename, 909, PXA2XX_RAM_BASE);
-    //                initrd_filename, 835, PXA2XX_RAM_BASE);
+    arm_load_kernel(cpu->env, ld_ram, kernel_filename, kernel_cmdline,
+                    initrd_filename, 835, PXA2XX_RAM_BASE);
  
 }
 
