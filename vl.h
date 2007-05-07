@@ -1413,6 +1413,7 @@ extern QEMUMachine terrierpda_machine;
 extern QEMUMachine palmld_machine;
 extern QEMUMachine palmt650_machine;
 extern QEMUMachine palmtc_machine;
+extern QEMUMachine palmtx_machine;
 
 /* ps2.c */
 void *ps2_kbd_init(void (*update_irq)(void *, int), void *update_arg);

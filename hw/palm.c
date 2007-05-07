@@ -8,7 +8,7 @@
 
 #include "vl.h"
 
-#define ld_printf(format, ...)	\
+#define palm_printf(format, ...)	\
     fprintf(stderr, "%s: " format, __FUNCTION__, ##__VA_ARGS__)
 
 /* CF Microdrive */
@@ -25,81 +25,91 @@ static void ld_microdrive_attach(struct pxa2xx_state_s *cpu)
 }
 
 /* Other peripherals */
+static void ld_gpio_switch(int line, int level, void *opaque)
+{
+    palm_printf("PalmLD GPIO %i is now %s.\n", line, level ? "HIGH" : "LOW");
+}
+
+static void tx_gpio_switch(int line, int level, void *opaque)
+{
+    palm_printf("PalmTX GPIO %i is now %s.\n", line, level ? "HIGH" : "LOW");
+}
+
 static void tc_gpio_switch(int line, int level, void *opaque)
 {
-    ld_printf("PalmTC GPIO %i is now %s.\n", line, level ? "HIGH" : "LOW");
+    palm_printf("PalmTC GPIO %i is now %s.\n", line, level ? "HIGH" : "LOW");
 }
 
 static void ld_btpwr1_switch(int line, int level, void *opaque)
 {
-    ld_printf("Bluetooth powered %s (1).\n", level ? "up" : "down");
+    palm_printf("Bluetooth powered %s (1).\n", level ? "up" : "down");
 }
 
 static void ld_lcdpwr1_switch(int line, int level, void *opaque)
 {
-    ld_printf("LCD powered %s (1).\n", level ? "up" : "down");
+    palm_printf("LCD powered %s (1).\n", level ? "up" : "down");
 }
 
 static void ld_wlanpwr_switch(int line, int level, void *opaque)
 {
-    ld_printf("WLAN powered %s.\n", level ? "up" : "down");
+    palm_printf("WLAN powered %s.\n", level ? "up" : "down");
 }
 
 static void ld_greenled_switch(int line, int level, void *opaque)
 {
-    ld_printf("Green LED %s.\n", level ? "on" : "off");
+    palm_printf("Green LED %s.\n", level ? "on" : "off");
 }
 
 static void ld_wlan_reset(int line, int level, void *opaque)
 {
-    ld_printf("WLAN %s reset state.\n", level ? "in" : "out of");
+    palm_printf("WLAN %s reset state.\n", level ? "in" : "out of");
 }
 
 static void ld_btpwr2_switch(int line, int level, void *opaque)
 {
-    ld_printf("Bluetooth powered %s (2).\n", level ? "up" : "down");
+    palm_printf("Bluetooth powered %s (2).\n", level ? "up" : "down");
 }
 
 static void ld_blpwr_switch(int line, int level, void *opaque)
 {
     struct pxa2xx_state_s *cpu = opaque;
 
-    ld_printf("%x LCD backlight %s.\n", cpu->env->regs[15], level ? "on" : "off");
+    palm_printf("%x LCD backlight %s.\n", cpu->env->regs[15], level ? "on" : "off");
 }
 
 static void ld_serialpwr_switch(int line, int level, void *opaque)
 {
-    ld_printf("Serial port powered %s.\n", level ? "up" : "down");
+    palm_printf("Serial port powered %s.\n", level ? "up" : "down");
 }
 
 static void ld_orangeled_switch(int line, int level, void *opaque)
 {
-    ld_printf("Orange LED %s.\n", level ? "on" : "off");
+    palm_printf("Orange LED %s.\n", level ? "on" : "off");
 }
 
 static void ld_lcdpwr2_switch(int line, int level, void *opaque)
 {
-    ld_printf("LCD powered %s (2).\n", level ? "up" : "down");
+    palm_printf("LCD powered %s (2).\n", level ? "up" : "down");
 }
 
 static void ld_hdd_reset(int line, int level, void *opaque)
 {
-    ld_printf("HDD %s reset state.\n", level ? "in" : "out of");
+    palm_printf("HDD %s reset state.\n", level ? "in" : "out of");
 }
 
 static void ld_usbpwr_switch(int line, int level, void *opaque)
 {
-    ld_printf("(possibly) USB powered %s.\n", level ? "up" : "down");
+    palm_printf("(possibly) USB powered %s.\n", level ? "up" : "down");
 }
 
 static void ld_irpwr_switch(int line, int level, void *opaque)
 {
-    ld_printf("Infrared powered %s.\n", level ? "down" : "up");
+    palm_printf("Infrared powered %s.\n", level ? "down" : "up");
 }
 
 static void ld_hddpwr_switch(int line, int level, void *opaque)
 {
-    ld_printf("HDD powered %s.\n", level ? "up" : "down");
+    palm_printf("HDD powered %s.\n", level ? "up" : "down");
 }
 
 #define LD_GPIO_BT1_PWR		17
@@ -126,8 +136,19 @@ static void ld_pcmcia_cb(void *opaque, int line, int level)
     }
 }
 
+static void tx_pcmcia_cb(void *opaque, int line, int level)
+{
+    struct pxa2xx_state_s *cpu = (struct pxa2xx_state_s *)opaque;
+}
+
+static void tc_pcmcia_cb(void *opaque, int line, int level)
+{
+    struct pxa2xx_state_s *cpu = (struct pxa2xx_state_s *)opaque;
+}
+
 static void ld_gpio_setup(struct pxa2xx_state_s *cpu)
 {
+    int g;
     qemu_irq *pcmcia_cb;
 
     /* PCMCIA signals: card's IRQ and Card-Detect*/
@@ -216,6 +237,153 @@ static void ld_gpio_setup(struct pxa2xx_state_s *cpu)
                     ld_irpwr_switch, cpu);
     pxa2xx_gpio_handler_set(cpu->gpio, LD_GPIO_HDD_PWR,
                     ld_hddpwr_switch, cpu);
+
+/* Uncomment this to monitor all GPIOs */
+/*    for (g=0;g<=120;g++)
+    pxa2xx_gpio_handler_set(cpu->gpio, g,
+                    ld_gpio_switch, cpu);
+*/
+}
+
+static void tx_gpio_setup(struct pxa2xx_state_s *cpu)
+{
+    int g;
+    qemu_irq *pcmcia_cb;
+
+    /* PCMCIA signals: card's IRQ and Card-Detect*/
+    pcmcia_cb = qemu_allocate_irqs(tx_pcmcia_cb, cpu, 2);
+    pxa2xx_pcmcia_set_irq_cb(cpu->pcmcia[0], pcmcia_cb[0], pcmcia_cb[1]);
+
+    /* Input pins levels */
+    pxa2xx_gpio_set(cpu->gpio, 0, 1);
+    pxa2xx_gpio_set(cpu->gpio, 1, 1);
+    pxa2xx_gpio_set(cpu->gpio, 2, 1);
+    pxa2xx_gpio_set(cpu->gpio, 3, 1);
+    pxa2xx_gpio_set(cpu->gpio, 4, 1);
+    pxa2xx_gpio_set(cpu->gpio, 5, 1);
+    pxa2xx_gpio_set(cpu->gpio, 6, 1);
+    pxa2xx_gpio_set(cpu->gpio, 7, 1);
+    pxa2xx_gpio_set(cpu->gpio, 8, 1);
+    pxa2xx_gpio_set(cpu->gpio, 9, 0);
+    pxa2xx_gpio_set(cpu->gpio, 10, 1); /* hotsync, deassert for recovery console */
+    pxa2xx_gpio_set(cpu->gpio, 11, 0);
+    pxa2xx_gpio_set(cpu->gpio, 12, 0); /* <--- power switch, for hard reset :D */
+    pxa2xx_gpio_set(cpu->gpio, 13, 1);
+    pxa2xx_gpio_set(cpu->gpio, 14, 1);
+    pxa2xx_gpio_set(cpu->gpio, 15, 1);
+    pxa2xx_gpio_set(cpu->gpio, 16, 1);
+    pxa2xx_gpio_set(cpu->gpio, 17, 1);
+    pxa2xx_gpio_set(cpu->gpio, 18, 1);
+    pxa2xx_gpio_set(cpu->gpio, 19, 1);
+    pxa2xx_gpio_set(cpu->gpio, 20, 0);
+    pxa2xx_gpio_set(cpu->gpio, 21, 0);
+    pxa2xx_gpio_set(cpu->gpio, 22, 0);
+    pxa2xx_gpio_set(cpu->gpio, 23, 0);
+    pxa2xx_gpio_set(cpu->gpio, 24, 1);
+    pxa2xx_gpio_set(cpu->gpio, 25, 0);
+    pxa2xx_gpio_set(cpu->gpio, 26, 1);
+    pxa2xx_gpio_set(cpu->gpio, 27, 0);
+    pxa2xx_gpio_set(cpu->gpio, 28, 1);
+    pxa2xx_gpio_set(cpu->gpio, 29, 0);
+    pxa2xx_gpio_set(cpu->gpio, 30, 0);
+    pxa2xx_gpio_set(cpu->gpio, 31, 0);
+
+    pxa2xx_gpio_set(cpu->gpio, 32, 0);
+    pxa2xx_gpio_set(cpu->gpio, 33, 0);
+    pxa2xx_gpio_set(cpu->gpio, 34, 1);
+    pxa2xx_gpio_set(cpu->gpio, 35, 1);
+    pxa2xx_gpio_set(cpu->gpio, 36, 0);
+    pxa2xx_gpio_set(cpu->gpio, 37, 1);
+    pxa2xx_gpio_set(cpu->gpio, 38, 0);
+    pxa2xx_gpio_set(cpu->gpio, 39, 1);
+    pxa2xx_gpio_set(cpu->gpio, 40, 1);
+    pxa2xx_gpio_set(cpu->gpio, 41, 1);
+    pxa2xx_gpio_set(cpu->gpio, 42, 1);
+    pxa2xx_gpio_set(cpu->gpio, 43, 1);
+    pxa2xx_gpio_set(cpu->gpio, 44, 1);
+    pxa2xx_gpio_set(cpu->gpio, 45, 1);
+    pxa2xx_gpio_set(cpu->gpio, 46, 1);
+    pxa2xx_gpio_set(cpu->gpio, 47, 0);
+    pxa2xx_gpio_set(cpu->gpio, 48, 1);
+    pxa2xx_gpio_set(cpu->gpio, 49, 1);
+    pxa2xx_gpio_set(cpu->gpio, 50, 1);
+    pxa2xx_gpio_set(cpu->gpio, 51, 1);
+    pxa2xx_gpio_set(cpu->gpio, 52, 0);
+    pxa2xx_gpio_set(cpu->gpio, 53, 0);
+    pxa2xx_gpio_set(cpu->gpio, 54, 0);
+    pxa2xx_gpio_set(cpu->gpio, 55, 1);
+    pxa2xx_gpio_set(cpu->gpio, 56, 0);
+    pxa2xx_gpio_set(cpu->gpio, 57, 0);
+    pxa2xx_gpio_set(cpu->gpio, 58, 1);
+    pxa2xx_gpio_set(cpu->gpio, 59, 1);
+    pxa2xx_gpio_set(cpu->gpio, 60, 1);
+    pxa2xx_gpio_set(cpu->gpio, 61, 1);
+    pxa2xx_gpio_set(cpu->gpio, 62, 1);
+    pxa2xx_gpio_set(cpu->gpio, 63, 1);
+
+    pxa2xx_gpio_set(cpu->gpio, 64, 1);
+    pxa2xx_gpio_set(cpu->gpio, 65, 1);
+    pxa2xx_gpio_set(cpu->gpio, 66, 1);
+    pxa2xx_gpio_set(cpu->gpio, 67, 1);
+    pxa2xx_gpio_set(cpu->gpio, 68, 1);
+    pxa2xx_gpio_set(cpu->gpio, 69, 1);
+    pxa2xx_gpio_set(cpu->gpio, 70, 1);
+    pxa2xx_gpio_set(cpu->gpio, 71, 1);
+    pxa2xx_gpio_set(cpu->gpio, 72, 1);
+    pxa2xx_gpio_set(cpu->gpio, 73, 1);
+    pxa2xx_gpio_set(cpu->gpio, 74, 1);
+    pxa2xx_gpio_set(cpu->gpio, 75, 1);
+    pxa2xx_gpio_set(cpu->gpio, 76, 1);
+    pxa2xx_gpio_set(cpu->gpio, 77, 1);
+    pxa2xx_gpio_set(cpu->gpio, 78, 0);
+    pxa2xx_gpio_set(cpu->gpio, 79, 1);
+    pxa2xx_gpio_set(cpu->gpio, 80, 0);
+    pxa2xx_gpio_set(cpu->gpio, 81, 1);
+    pxa2xx_gpio_set(cpu->gpio, 82, 1);
+    pxa2xx_gpio_set(cpu->gpio, 83, 0);
+    pxa2xx_gpio_set(cpu->gpio, 84, 1);
+    pxa2xx_gpio_set(cpu->gpio, 85, 0);
+    pxa2xx_gpio_set(cpu->gpio, 86, 1);
+    pxa2xx_gpio_set(cpu->gpio, 87, 0);
+    pxa2xx_gpio_set(cpu->gpio, 88, 0);
+    pxa2xx_gpio_set(cpu->gpio, 89, 0);
+    pxa2xx_gpio_set(cpu->gpio, 90, 0);
+    pxa2xx_gpio_set(cpu->gpio, 91, 0);
+    pxa2xx_gpio_set(cpu->gpio, 92, 0);
+    pxa2xx_gpio_set(cpu->gpio, 93, 0);
+    pxa2xx_gpio_set(cpu->gpio, 94, 0);
+    pxa2xx_gpio_set(cpu->gpio, 95, 0);
+
+    pxa2xx_gpio_set(cpu->gpio, 96, 1);
+    pxa2xx_gpio_set(cpu->gpio, 97, 0);
+    pxa2xx_gpio_set(cpu->gpio, 98, 0);
+    pxa2xx_gpio_set(cpu->gpio, 99, 0);
+    pxa2xx_gpio_set(cpu->gpio, 100, 0);
+    pxa2xx_gpio_set(cpu->gpio, 101, 0);
+    pxa2xx_gpio_set(cpu->gpio, 102, 0);
+    pxa2xx_gpio_set(cpu->gpio, 103, 1);
+    pxa2xx_gpio_set(cpu->gpio, 104, 1);
+    pxa2xx_gpio_set(cpu->gpio, 105, 1);
+    pxa2xx_gpio_set(cpu->gpio, 106, 0);
+    pxa2xx_gpio_set(cpu->gpio, 107, 0);
+    pxa2xx_gpio_set(cpu->gpio, 108, 0);
+    pxa2xx_gpio_set(cpu->gpio, 109, 0);
+    pxa2xx_gpio_set(cpu->gpio, 110, 0);
+    pxa2xx_gpio_set(cpu->gpio, 111, 0);
+    pxa2xx_gpio_set(cpu->gpio, 112, 0);
+    pxa2xx_gpio_set(cpu->gpio, 113, 1);
+    pxa2xx_gpio_set(cpu->gpio, 114, 1);
+    pxa2xx_gpio_set(cpu->gpio, 115, 1);
+    pxa2xx_gpio_set(cpu->gpio, 116, 0);
+    pxa2xx_gpio_set(cpu->gpio, 117, 0);
+    pxa2xx_gpio_set(cpu->gpio, 118, 0);
+    pxa2xx_gpio_set(cpu->gpio, 119, 0);
+    pxa2xx_gpio_set(cpu->gpio, 120, 0);
+
+    for (g=0;g<=120;g++)
+    pxa2xx_gpio_handler_set(cpu->gpio, g,
+                    tx_gpio_switch, cpu);
+
 }
 
 static void tc_gpio_setup(struct pxa2xx_state_s *cpu)
@@ -224,7 +392,7 @@ static void tc_gpio_setup(struct pxa2xx_state_s *cpu)
     int g;
 
     /* PCMCIA signals: card's IRQ and Card-Detect*/
-    pcmcia_cb = qemu_allocate_irqs(ld_pcmcia_cb, cpu, 2);
+    pcmcia_cb = qemu_allocate_irqs(tc_pcmcia_cb, cpu, 2);
     pxa2xx_pcmcia_set_irq_cb(cpu->pcmcia[0], pcmcia_cb[0], pcmcia_cb[1]);
 
     /* Input pins levels */
@@ -353,7 +521,7 @@ static void tc_gpio_setup(struct pxa2xx_state_s *cpu)
     pxa2xx_gpio_set(cpu->gpio, 119, 0);
     pxa2xx_gpio_set(cpu->gpio, 120, 0);
 
-    for (g=0;g<=84;g++)
+    for (g=0;g<=120;g++)
     pxa2xx_gpio_handler_set(cpu->gpio, g,
                     tc_gpio_switch, cpu);
 
@@ -603,6 +771,17 @@ static void tc_init(int ram_size, int vga_ram_size, int boot_device,
 
     cpu_register_physical_memory(0, tc_rom, tc_ram | IO_MEM_ROM);
 
+    int iomemtype = cpu_register_io_memory(0, ac97_readfn,
+                    ac97_writefn, NULL);
+    cpu_register_physical_memory(0x40500000, 0x00000fff, iomemtype);
+
+    iomemtype = cpu_register_io_memory(0, key_readfn,
+                    key_writefn, cpu);
+    cpu_register_physical_memory(0x41500000, 0x00000fff, iomemtype);
+
+
+    ac97_init();
+
     /* Setup peripherals */
     tc_gpio_setup(cpu);
 
@@ -612,10 +791,61 @@ static void tc_init(int ram_size, int vga_ram_size, int boot_device,
 
     memset(phys_ram_base, 0, tc_ram);
     memset(phys_ram_base + tc_ram, 0, tc_rom);
-    load_image("palmtc.rom", phys_ram_base + tc_ram);
+    load_image("../../../BOOTROM/palmtc.rom", phys_ram_base + tc_ram);
 
     arm_load_kernel(cpu->env, tc_ram, kernel_filename, kernel_cmdline,
             initrd_filename, 918 /* THIS IS ARM_ID!! */, PXA2XX_RAM_BASE);
+ 
+}
+
+static void tx_init(int ram_size, int vga_ram_size, int boot_device,
+                DisplayState *ds, const char **fd_filename, int snapshot,
+                const char *kernel_filename, const char *kernel_cmdline,
+                const char *initrd_filename)
+{
+    uint32_t tx_ram = 0x02000000;
+    uint32_t tx_rom = 0x02000000;
+    uint32_t tx_ram_int = 0x00040000;
+    struct pxa2xx_state_s *cpu;
+
+    cpu = pxa270_init(ds, "pxa270-c5");
+
+    /* Setup memory */
+    if (ram_size < tx_ram + tx_rom + tx_ram_int) {
+        fprintf(stderr, "This platform requires %i bytes of memory\n",
+                        tx_ram + tx_rom + tx_ram_int);
+        exit(1);
+    }
+    cpu_register_physical_memory(PXA2XX_RAM_BASE, tx_ram, IO_MEM_RAM);
+
+    cpu_register_physical_memory(0, tx_rom, tx_ram | IO_MEM_ROM);
+
+    cpu_register_physical_memory(0x5c000000, 0x40000, (tx_ram + tx_rom) | IO_MEM_RAM);
+
+    int iomemtype = cpu_register_io_memory(0, ac97_readfn,
+                    ac97_writefn, NULL);
+    cpu_register_physical_memory(0x40500000, 0x00000fff, iomemtype);
+
+    iomemtype = cpu_register_io_memory(0, key_readfn,
+                    key_writefn, cpu);
+    cpu_register_physical_memory(0x41500000, 0x00000fff, iomemtype);
+
+
+    ac97_init();
+
+    /* Setup peripherals */
+    tx_gpio_setup(cpu);
+
+    /* Setup initial (reset) machine state */
+    cpu->env->regs[15] = 0;
+//    cpu->env->regs[15] = PXA2XX_RAM_BASE;
+
+    memset(phys_ram_base, 0, tx_ram);
+    memset(phys_ram_base + tx_ram, 0, tx_rom);
+    load_image("../../../BOOTROM/palmtx.rom", phys_ram_base + tx_ram);
+
+    arm_load_kernel(cpu->env, tx_ram, kernel_filename, kernel_cmdline,
+                    initrd_filename, 885, PXA2XX_RAM_BASE);
  
 }
 
@@ -624,6 +854,12 @@ QEMUMachine palmtc_machine = {
     "palmtc",
     "Palm Tungsten|C (PXA255)",
     tc_init,
+};
+
+QEMUMachine palmtx_machine = {
+    "palmtx",
+    "Palm TX (PXA270)",
+    tx_init,
 };
 
 QEMUMachine palmld_machine = {
