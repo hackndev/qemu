@@ -548,33 +548,37 @@ static void t650_init(int ram_size, int vga_ram_size, int boot_device,
                 const char *initrd_filename)
 {
     uint32_t t650_ram = 0x02000000;
-    uint32_t t650_rom = 0x00080000;
+    uint32_t t650_rom = 0x00000000;
+    uint32_t t650_ram_int = 0x00040000;
     struct pxa2xx_state_s *cpu;
 
     cpu = pxa270_init(ds, "pxa270-c0");
 
     /* Setup memory */
-    if (ram_size < t650_ram + t650_rom) {
+    if (ram_size < t650_ram + t650_rom + t650_ram_int) {
         fprintf(stderr, "This platform requires %i bytes of memory\n",
                         t650_ram + t650_rom);
         exit(1);
     }
     cpu_register_physical_memory(PXA2XX_RAM_BASE, t650_ram, IO_MEM_RAM);
 
-    cpu_register_physical_memory(0, t650_rom, t650_ram | IO_MEM_ROM);
+    //cpu_register_physical_memory(0, t650_rom, t650_ram | IO_MEM_ROM);
 
+    cpu_register_physical_memory(0x5c000000, 0x40000, (t650_ram + t650_rom) | IO_MEM_RAM);
     /* Setup peripherals */
     ld_gpio_setup(cpu); // FIXME: write t650 gpio func
 
     /* Setup initial (reset) machine state */
-    //cpu->env->regs[15] = 0;
-    cpu->env->regs[15] = PXA2XX_RAM_BASE;
+    cpu->env->regs[15] = 0;
+    //cpu->env->regs[15] = PXA2XX_RAM_BASE;
+    
+    mdoc_init();
 
-    memset(phys_ram_base + t650_ram, 0, t650_rom);
-    //load_image("../ace-bootrom", phys_ram_base + t650_ram);
+    //memset(phys_ram_base + t650_ram, 0, t650_rom);
+    //load_image("palmt650.rom", phys_ram_base + t650_ram);
 
-    arm_load_kernel(cpu->env, t650_ram, kernel_filename, kernel_cmdline,
-                    initrd_filename, 909, PXA2XX_RAM_BASE);
+    //arm_load_kernel(cpu->env, t650_ram, kernel_filename, kernel_cmdline,
+    //                initrd_filename, 909, PXA2XX_RAM_BASE);
  
 }
 

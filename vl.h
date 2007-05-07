@@ -1516,6 +1516,10 @@ uint8_t nand_getio(struct nand_flash_s *s);
 
 #include "ecc.h"
 
+/* mdoc.c */
+struct mdoc_s;
+struct mdoc_s *mdoc_init(void);
+
 /* GPIO */
 typedef void (*gpio_handler_t)(int line, int level, void *opaque);
 
