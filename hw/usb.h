@@ -203,7 +203,8 @@ void usb_packet_complete(USBPacket *p);
 USBDevice *usb_hub_init(int nb_ports);
 
 /* usb-uhci.c */
-void usb_uhci_init(PCIBus *bus, int devfn);
+void usb_uhci_piix3_init(PCIBus *bus, int devfn);
+void usb_uhci_piix4_init(PCIBus *bus, int devfn);
 
 /* usb-ohci.c */
 void usb_ohci_init_pci(struct PCIBus *bus, int num_ports, int devfn);
@@ -217,6 +218,10 @@ void usb_host_info(void);
 /* usb-hid.c */
 USBDevice *usb_mouse_init(void);
 USBDevice *usb_tablet_init(void);
+USBDevice *usb_keyboard_init(void);
 
 /* usb-msd.c */
 USBDevice *usb_msd_init(const char *filename);
+
+/* usb-wacom.c */
+USBDevice *usb_wacom_init(void);

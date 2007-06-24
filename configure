@@ -157,6 +157,9 @@ SunOS)
             kqemu="yes"
         fi
     fi
+    if test -f /usr/include/sys/soundcard.h ; then
+        oss=yes
+    fi
 ;;
 *)
 oss="yes"
@@ -394,18 +397,13 @@ if test "$check_gcc" = "yes" ; then
 #endif
 int main(){return 0;}
 EOF
-    check_cc() {
-	which "$1" 2> /dev/null
-	return $?
-    }
-
     if "$cc" -o $TMPE $TMPC 2> /dev/null ; then
 	echo "WARNING: \"$cc\" looks like gcc 4.x"
 	found_compat_cc="no"
 	if test "$gcc3_search" = "yes" ; then
 	    echo "Looking for gcc 3.x"
 	    for compat_cc in $gcc3_list ; do
-		if check_cc "$cross_prefix$compat_cc" ; then
+		if "$cross_prefix$compat_cc" --version > /dev/null 2>&1 ; then
 		    echo "Found \"$compat_cc\""
 		    cc="$cross_prefix$compat_cc"
 		    found_compat_cc="yes"
@@ -469,7 +467,7 @@ fi
 if test -z "$target_list" ; then
 # these targets are portable
     if [ "$softmmu" = "yes" ] ; then
-        target_list="i386-softmmu ppc-softmmu sparc-softmmu x86_64-softmmu mips-softmmu mipsel-softmmu mips64-softmmu mips64el-softmmu arm-softmmu ppc64-softmmu ppcemb-softmmu "
+        target_list="i386-softmmu ppc-softmmu sparc-softmmu x86_64-softmmu mips-softmmu mipsel-softmmu mips64-softmmu mips64el-softmmu arm-softmmu ppc64-softmmu ppcemb-softmmu m68k-softmmu"
     fi
 # the following are Linux specific
     if [ "$linux_user" = "yes" ] ; then
@@ -562,8 +560,8 @@ fi
 # static link with sdl ?
 if test "$sdl" = "yes" ; then
 aa="no"
-`$sdl_config --static-libs | grep \\\-laa > /dev/null` && aa="yes"
-sdl_static_libs=`$sdl_config --static-libs`
+`$sdl_config --static-libs 2>/dev/null | grep \\\-laa > /dev/null` && aa="yes"
+sdl_static_libs=`$sdl_config --static-libs 2>/dev/null`
 if [ "$aa" = "yes" ] ; then
   sdl_static_libs="$sdl_static_libs `aalib-config --static-libs`"
 fi
@@ -606,7 +604,8 @@ EOF
 fi
 
 # Check if tools are available to build documentation.
-if [ -x "`which texi2html`" ] && [ -x "`which pod2man`" ]; then
+if [ -x "`which texi2html 2>/dev/null`" ] && \
+   [ -x "`which pod2man 2>/dev/null`" ]; then
   build_docs="yes"
 fi
 
@@ -671,6 +670,7 @@ else
     fmod_support=""
 fi
 echo "FMOD support      $fmod $fmod_support"
+echo "OSS support       $oss"
 if test -n "$sparc_cpu"; then
     echo "Target Sparc Arch $sparc_cpu"
 fi
@@ -874,23 +874,26 @@ target_bigendian="no"
 [ "$target_cpu" = "sh4eb" ] && target_bigendian=yes
 [ "$target_cpu" = "m68k" ] && target_bigendian=yes
 target_softmmu="no"
-if expr $target : '.*-softmmu' > /dev/null ; then
-  target_softmmu="yes"
-fi
 target_user_only="no"
-if expr $target : '.*-user' > /dev/null ; then
-  target_user_only="yes"
-fi
-
 target_linux_user="no"
-if expr $target : '.*-linux-user' > /dev/null ; then
-  target_linux_user="yes"
-fi
-
 target_darwin_user="no"
-if expr $target : '.*-darwin-user' > /dev/null ; then
-  target_darwin_user="yes"
-fi
+case "$target" in
+  ${target_cpu}-softmmu)
+    target_softmmu="yes"
+    ;;
+  ${target_cpu}-linux-user)
+    target_user_only="yes"
+    target_linux_user="yes"
+    ;;
+  ${target_cpu}-darwin-user)
+    target_user_only="yes"
+    target_darwin_user="yes"
+    ;;
+  *)
+    echo "ERROR: Target '$target' not recognised"
+    exit 1
+    ;;
+esac
 
 if test "$target_user_only" = "no" -a "$check_gfx" = "yes" \
         -a "$sdl" = "no" -a "$cocoa" = "no" ; then

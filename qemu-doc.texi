@@ -77,10 +77,12 @@ For system emulation, the following hardware targets are supported:
 @item Sun4m (32-bit Sparc processor)
 @item Sun4u (64-bit Sparc processor, in progress)
 @item Malta board (32-bit MIPS processor)
-@item ARM Integrator/CP (ARM926E or 1026E processor)
+@item ARM Integrator/CP (ARM926E, 1026E or 946E processor)
 @item ARM Versatile baseboard (ARM926E)
 @item ARM RealView Emulation baseboard (ARM926EJ-S)
 @item Spitz, Akita, Borzoi and Terrier PDAs (PXA270 processor)
+@item Freescale MCF5208EVB (ColdFire V2).
+@item Arnewsh MCF5206 evaluation board (ColdFire V2).
 @end itemize
 
 For user emulation, x86, PowerPC, ARM, MIPS, Sparc32/64 and ColdFire(m68k) CPUs are supported.
@@ -152,7 +154,7 @@ PS/2 mouse and keyboard
 @item
 Floppy disk
 @item 
-NE2000 PCI network adapters
+PCI/ISA PCI network adapters
 @item
 Serial ports
 @item
@@ -354,19 +356,20 @@ Network options:
 
 @item -net nic[,vlan=n][,macaddr=addr][,model=type]
 Create a new Network Interface Card and connect it to VLAN @var{n} (@var{n}
-= 0 is the default). The NIC is currently an NE2000 on the PC
+= 0 is the default). The NIC is an ne2k_pci by default on the PC
 target. Optionally, the MAC address can be changed. If no
 @option{-net} option is specified, a single NIC is created.
 Qemu can emulate several different models of network card.
 Valid values for @var{type} are
 @code{i82551}, @code{i82557b}, @code{i82559er},
 @code{ne2k_pci}, @code{ne2k_isa}, @code{pcnet}, @code{rtl8139},
-@code{smc91c111} and @code{lance}.
-Not all devices are supported on all targets.
+@code{smc91c111}, @code{lance} and @code{mcf_fec}.
+Not all devices are supported on all targets.  Use -net nic,model=?
+for a list of available devices for your target.
 
 @item -net user[,vlan=n][,hostname=name]
 Use the user mode network stack which requires no administrator
-priviledge to run.  @option{hostname=name} can be used to specify the client
+privilege to run.  @option{hostname=name} can be used to specify the client
 hostname reported by the builtin DHCP server.
 
 @item -net tap[,vlan=n][,fd=h][,ifname=name][,script=file]
@@ -421,7 +424,8 @@ correct multicast setup for these hosts).
 @item
 mcast support is compatible with User Mode Linux (argument @option{eth@var{N}=mcast}), see
 @url{http://user-mode-linux.sf.net}.
-@item Use @option{fd=h} to specify an already opened UDP multicast socket.
+@item
+Use @option{fd=h} to specify an already opened UDP multicast socket.
 @end enumerate
 
 Example:
@@ -574,7 +578,7 @@ name pipe @var{filename}
 @item COMn
 [Windows only] Use host serial port @var{n}
 @item udp:[remote_host]:remote_port[@@[src_ip]:src_port]
-This implements UDP Net Console.  When @var{remote_host} or @var{src_ip} are not specified they default to @code{0.0.0.0}.  When not using a specifed @var{src_port} a random port is automatically chosen.
+This implements UDP Net Console.  When @var{remote_host} or @var{src_ip} are not specified they default to @code{0.0.0.0}.  When not using a specified @var{src_port} a random port is automatically chosen.
 
 If you just want a simple readonly console you can use @code{netcat} or
 @code{nc}, by starting qemu with: @code{-serial udp::4555} and nc as:
@@ -607,7 +611,7 @@ the TCP Net Console is sent to @var{host} at the @var{port}.  If you use
 the @var{server} option QEMU will wait for a client socket application
 to connect to the port before continuing, unless the @code{nowait}
 option was specified.  The @code{nodelay} option disables the Nagle buffering
-algoritm.  If @var{host} is omitted, 0.0.0.0 is assumed. Only
+algorithm.  If @var{host} is omitted, 0.0.0.0 is assumed. Only
 one TCP connection at a time is accepted. You can use @code{telnet} to
 connect to the corresponding character device.
 @table @code
@@ -690,7 +694,7 @@ Output log in /tmp/qemu.log
 Force hard disk 0 physical geometry (1 <= @var{c} <= 16383, 1 <=
 @var{h} <= 16, 1 <= @var{s} <= 63) and optionally force the BIOS
 translation mode (@var{t}=none, lba or auto). Usually QEMU can guess
-all thoses parameters. This option is useful for old MS-DOS disk
+all those parameters. This option is useful for old MS-DOS disk
 images.
 
 @item -L path
@@ -714,7 +718,11 @@ Exit instead of rebooting.
 Start right away with a saved state (@code{loadvm} in monitor)
 
 @item -semihosting
-Enable "Angel" semihosting interface (ARM target machines only).
+Enable semihosting syscall emulation (ARM and M68K target machines only).
+
+On ARM this implements the "Angel" interface.
+On M68K this implements the "ColdFire GDB" interface used by libgloss.
+
 Note that this allows guest direct access to the host filesystem,
 so should only be used with trusted guest OS.
 @end table
@@ -923,7 +931,7 @@ data. Its syntax is: @option{/@{count@}@{format@}@{size@}}
 is the number of items to be dumped.
 
 @item format
-can be x (hexa), d (signed decimal), u (unsigned decimal), o (octal),
+can be x (hex), d (signed decimal), u (unsigned decimal), o (octal),
 c (char) or i (asm instruction).
 
 @item size
@@ -1112,7 +1120,7 @@ devices. We describe here the usage for QEMU version >= 0.8.3.
 @subsubsection Linux
 
 On Linux, you can directly use the host device filename instead of a
-disk image filename provided you have enough proviledge to access
+disk image filename provided you have enough privileges to access
 it. For example, use @file{/dev/cdrom} to access to the CDROM or
 @file{/dev/fd0} for the floppy.
 
@@ -1139,7 +1147,7 @@ line option or modify the device permissions accordingly).
 
 @table @code
 @item CD
-The prefered syntax is the drive letter (e.g. @file{d:}). The
+The preferred syntax is the drive letter (e.g. @file{d:}). The
 alternate syntax @file{\\.\d:} is supported. @file{/dev/cdrom} is
 supported as an alias to the first CDROM drive.
 
@@ -1203,11 +1211,11 @@ What you should @emph{never} do:
 @node pcsys_network
 @section Network emulation
 
-QEMU can simulate several networks cards (NE2000 boards on the PC
+QEMU can simulate several network cards (PCI or ISA cards on the PC
 target) and can connect them to an arbitrary number of Virtual Local
 Area Networks (VLANs). Host TAP devices can be connected to any QEMU
 VLAN. VLAN can be connected between separate instances of QEMU to
-simulate large networks. For simpler usage, a non priviledged user mode
+simulate large networks. For simpler usage, a non privileged user mode
 network stack can replace the TAP device to have a basic network
 connection.
 
@@ -1247,7 +1255,7 @@ so download OpenVPN from : @url{http://openvpn.net/}.
 
 By using the option @option{-net user} (default configuration if no
 @option{-net} option is specified), QEMU uses a completely user mode
-network stack (you don't need root priviledge to use the virtual
+network stack (you don't need root privilege to use the virtual
 network). The virtual network configuration is the following:
 
 @example
@@ -1270,7 +1278,7 @@ the address 10.0.2.2 and verify that you got an address in the range
 10.0.2.x from the QEMU virtual DHCP server.
 
 Note that @code{ping} is not supported reliably to the internet as it
-would require root priviledges. It means you can only ping the local
+would require root privileges. It means you can only ping the local
 router (10.0.2.2).
 
 When using the built-in TFTP server, the router is also the TFTP
@@ -1350,6 +1358,12 @@ Pass through the host device identified by @var{bus.addr}
 @item @code{host:vendor_id:product_id}
 Pass through the host device identified by @var{vendor_id:product_id}
 (Linux only)
+@item @code{wacom-tablet}
+Virtual Wacom PenPartner tablet.  This device is similar to the @code{tablet}
+above but it can be used with the tslib library because in addition to touch
+coordinates it reports touch pressure.
+@item @code{keyboard}
+Standard USB keyboard.  Will override the PS/2 keyboard (if present).
 @end table
 
 @node host_usb_devices
@@ -1459,7 +1473,7 @@ cannot simulate exactly.
 When using a 2.6 guest Linux kernel, verify that the 4G/4G patch is
 not activated because QEMU is slower with this patch. The QEMU
 Accelerator Module is also much slower in this case. Earlier Fedora
-Core 3 Linux kernel (< 2.6.9-1.724_FC3) were known to incorporte this
+Core 3 Linux kernel (< 2.6.9-1.724_FC3) were known to incorporate this
 patch by default. Newer kernels don't have it.
 
 @subsection Windows
@@ -1541,7 +1555,7 @@ problem.
 
 QEMU is a generic emulator and it emulates many non PC
 machines. Most of the options are similar to the PC emulator. The
-differences are mentionned in the following sections.
+differences are mentioned in the following sections.
 
 @menu
 * QEMU PowerPC System emulator::
@@ -1549,6 +1563,7 @@ differences are mentionned in the following sections.
 * Sparc64 System emulator invocation::
 * MIPS System emulator invocation::
 * ARM System emulator invocation::
+* ColdFire System emulator invocation::
 @end menu
 
 @node QEMU PowerPC System emulator
@@ -1620,7 +1635,7 @@ More information is available at
 @section Sparc32 System emulator invocation
 
 Use the executable @file{qemu-system-sparc} to simulate a SparcStation 5
-(sun4m architecture). The emulation is somewhat complete.
+or SparcStation 10 (sun4m architecture). The emulation is somewhat complete.
 
 QEMU emulates the following sun4m peripherals:
 
@@ -1640,6 +1655,8 @@ and power/reset logic
 ESP SCSI controller with hard disk and CD-ROM support
 @item
 Floppy drive
+@item
+CS4231 sound device (only on SS-5, not working yet)
 @end itemize
 
 The number of peripherals is fixed in the architecture.
@@ -1655,13 +1672,14 @@ Solaris kernels don't work.
 
 @c man begin OPTIONS
 
-The following options are specific to the Sparc emulation:
+The following options are specific to the Sparc32 emulation:
 
 @table @option
 
-@item -g WxH
+@item -g WxHx[xDEPTH]
 
-Set the initial TCX graphic mode. The default is 1024x768.
+Set the initial TCX graphic mode. The default is 1024x768x8, currently
+the only other possible mode is 1024x768x24.
 
 @item -prom-env string
 
@@ -1671,6 +1689,10 @@ Set OpenBIOS variables in NVRAM, for example:
 qemu-system-sparc -prom-env 'auto-boot?=false' \
  -prom-env 'boot-device=sd(0,2,0):d' -prom-env 'boot-args=linux single'
 @end example
+
+@item -M [SS-5|SS-10]
+
+Set the emulated machine type. Default is SS-5.
 
 @end table
 
@@ -1722,7 +1744,7 @@ devices:
 
 @itemize @minus
 @item
-ARM926E or ARM1026E CPU
+ARM926E, ARM1026E or ARM946E CPU
 @item
 Two PL011 UARTs
 @item 
@@ -1753,8 +1775,8 @@ PL050 KMI with PS/2 keyboard and mouse.
 @item
 PCI host bridge.  Note the emulated PCI bridge only provides access to
 PCI memory space.  It does not provide access to PCI IO space.
-This means some devices (eg. ne2k_pci NIC) are not useable, and others
-(eg. rtl8139 NIC) are only useable when the guest drivers use the memory
+This means some devices (eg. ne2k_pci NIC) are not usable, and others
+(eg. rtl8139 NIC) are only usable when the guest drivers use the memory
 mapped control registers.
 @item
 PCI OHCI USB controller.
@@ -1822,6 +1844,32 @@ WM8750 audio CODEC on I@math{^2}C and I@math{^2}S busses
 A Linux 2.6 test image is available on the QEMU web site. More
 information is available in the QEMU mailing-list archive.
 
+@node ColdFire System emulator invocation
+@section ColdFire System emulator invocation
+
+Use the executable @file{qemu-system-m68k} to simulate a ColdFire machine.
+The emulator is able to boot a uClinux kernel.
+
+The M5208EVB emulation includes the following devices:
+
+@itemize @minus
+@item 
+MCF5208 ColdFire V2 Microprocessor (ISA A+ with EMAC).
+@item
+Three Two on-chip UARTs.
+@item
+Fast Ethernet Controller (FEC)
+@end itemize
+
+The AN5206 emulation includes the following devices:
+
+@itemize @minus
+@item 
+MCF5206 ColdFire V2 Microprocessor.
+@item
+Two on-chip UARTs.
+@end itemize
+
 @node QEMU User space emulator 
 @chapter QEMU User space emulator 
 
@@ -1838,9 +1886,9 @@ The following OS are supported in user space emulation:
 
 @itemize @minus
 @item
-Linux (refered as qemu-linux-user)
+Linux (referred as qemu-linux-user)
 @item
-Mac OS X/Darwin (refered as qemu-darwin-user)
+Mac OS X/Darwin (referred as qemu-darwin-user)
 @end itemize
 
 @node Linux User space emulator
@@ -2098,7 +2146,7 @@ in particular on x86 ones, @emph{gcc 4.x is not supported}. If your
 Linux distribution includes a gcc 4.x compiler, you can usually
 install an older version (it is invoked by @code{gcc32} or
 @code{gcc34}). The QEMU configure script automatically probes for
-these older versions so that usally you don't have to do anything.
+these older versions so that usually you don't have to do anything.
 
 @node Windows
 @section Windows
@@ -2150,7 +2198,7 @@ Configure QEMU for Windows cross compilation:
 ./configure --enable-mingw32
 @end example
 If necessary, you can change the cross-prefix according to the prefix
-choosen for the MinGW tools with --cross-prefix. You can also use
+chosen for the MinGW tools with --cross-prefix. You can also use
 --prefix to set the Win32 install path.
 
 @item You can install QEMU in the installation directory by typing 

@@ -257,7 +257,7 @@ static void integratorcm_init(int memsz, uint32_t flash_offset)
 
     iomemtype = cpu_register_io_memory(0, integratorcm_readfn,
                                        integratorcm_writefn, s);
-    cpu_register_physical_memory(0x10000000, 0x007fffff, iomemtype);
+    cpu_register_physical_memory(0x10000000, 0x00800000, iomemtype);
     integratorcm_do_remap(s, 1);
     /* ??? Save/restore.  */
 }
@@ -390,7 +390,7 @@ static qemu_irq *icp_pic_init(uint32_t base,
     s->parent_fiq = parent_fiq;
     iomemtype = cpu_register_io_memory(0, icp_pic_readfn,
                                        icp_pic_writefn, s);
-    cpu_register_physical_memory(base, 0x007fffff, iomemtype);
+    cpu_register_physical_memory(base, 0x00800000, iomemtype);
     /* ??? Save/restore.  */
     return qi;
 }
@@ -454,7 +454,7 @@ static void icp_control_init(uint32_t base)
     s = (icp_control_state *)qemu_mallocz(sizeof(icp_control_state));
     iomemtype = cpu_register_io_memory(0, icp_control_readfn,
                                        icp_control_writefn, s);
-    cpu_register_physical_memory(base, 0x007fffff, iomemtype);
+    cpu_register_physical_memory(base, 0x00800000, iomemtype);
     s->base = base;
     /* ??? Save/restore.  */
 }
@@ -500,6 +500,9 @@ static void integratorcp_init(int ram_size, int vga_ram_size, int boot_device,
         if (nd_table[0].model == NULL
             || strcmp(nd_table[0].model, "smc91c111") == 0) {
             smc91c111_init(&nd_table[0], 0xc8000000, pic[27]);
+        } else if (strcmp(nd_table[0].model, "?") == 0) {
+            fprintf(stderr, "qemu: Supported NICs: smc91c111\n");
+            exit (1);
         } else {
             fprintf(stderr, "qemu: Unsupported NIC: %s\n", nd_table[0].model);
             exit (1);

@@ -134,7 +134,7 @@ print_insn_thumb1(bfd_vma pc, disassemble_info *info)
 }
 #endif
 
-/* Disassemble this for me please... (debugging). 'flags' has teh following
+/* Disassemble this for me please... (debugging). 'flags' has the following
    values:
     i386 - nonzero means 16 bit code
     arm  - nonzero means thumb code 
@@ -308,8 +308,8 @@ const char *lookup_symbol(target_ulong orig_addr)
 		continue;
 
 	    addr = sym[i].st_value;
-#ifdef TARGET_ARM
-            /* The bottom address bit marks a Thumb symbol.  */
+#if defined(TARGET_ARM) || defined (TARGET_MIPS)
+            /* The bottom address bit marks a Thumb or MIPS16 symbol.  */
             addr &= ~(target_ulong)1;
 #endif
 	    if (orig_addr >= addr

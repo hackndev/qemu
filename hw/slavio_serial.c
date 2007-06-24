@@ -102,6 +102,7 @@ struct SerialState {
 };
 
 #define SERIAL_MAXADDR 7
+#define SERIAL_SIZE (SERIAL_MAXADDR + 1)
 
 static void handle_kbd_command(ChannelState *s, int val);
 static int serial_can_receive(void *opaque);
@@ -178,7 +179,7 @@ static void slavio_serial_reset_chn(ChannelState *s)
     int i;
 
     s->reg = 0;
-    for (i = 0; i < SERIAL_MAXADDR; i++) {
+    for (i = 0; i < SERIAL_SIZE; i++) {
 	s->rregs[i] = 0;
 	s->wregs[i] = 0;
     }
@@ -587,8 +588,8 @@ static int slavio_serial_load(QEMUFile *f, void *opaque, int version_id)
 
 }
 
-SerialState *slavio_serial_init(int base, qemu_irq irq, CharDriverState *chr1,
-                                CharDriverState *chr2)
+SerialState *slavio_serial_init(target_phys_addr_t base, qemu_irq irq,
+                                CharDriverState *chr1, CharDriverState *chr2)
 {
     int slavio_serial_io_memory, i;
     SerialState *s;
@@ -598,7 +599,7 @@ SerialState *slavio_serial_init(int base, qemu_irq irq, CharDriverState *chr1,
         return NULL;
 
     slavio_serial_io_memory = cpu_register_io_memory(0, slavio_serial_mem_read, slavio_serial_mem_write, s);
-    cpu_register_physical_memory(base, SERIAL_MAXADDR, slavio_serial_io_memory);
+    cpu_register_physical_memory(base, SERIAL_SIZE, slavio_serial_io_memory);
 
     s->chn[0].chr = chr1;
     s->chn[1].chr = chr2;
@@ -704,7 +705,7 @@ static void sunmouse_event(void *opaque,
     put_queue(s, 0);
 }
 
-void slavio_serial_ms_kbd_init(int base, qemu_irq irq)
+void slavio_serial_ms_kbd_init(target_phys_addr_t base, qemu_irq irq)
 {
     int slavio_serial_io_memory, i;
     SerialState *s;
@@ -723,7 +724,7 @@ void slavio_serial_ms_kbd_init(int base, qemu_irq irq)
     s->chn[1].type = kbd;
 
     slavio_serial_io_memory = cpu_register_io_memory(0, slavio_serial_mem_read, slavio_serial_mem_write, s);
-    cpu_register_physical_memory(base, SERIAL_MAXADDR, slavio_serial_io_memory);
+    cpu_register_physical_memory(base, SERIAL_SIZE, slavio_serial_io_memory);
 
     qemu_add_mouse_event_handler(sunmouse_event, &s->chn[0], 0, "QEMU Sun Mouse");
     qemu_add_kbd_event_handler(sunkbd_event, &s->chn[1]);

@@ -117,6 +117,21 @@
 #define elf_check_arch(x) ((x) == EM_68K)
 #define ELF_USES_RELOCA
 
+#elif defined(HOST_MIPS)
+
+#define ELF_CLASS	ELFCLASS32
+#define ELF_ARCH	EM_MIPS
+#define elf_check_arch(x) ((x) == EM_MIPS)
+#define ELF_USES_RELOC
+
+#elif defined(HOST_MIPS64)
+
+/* Assume n32 ABI here, which is ELF32. */
+#define ELF_CLASS	ELFCLASS32
+#define ELF_ARCH	EM_MIPS
+#define elf_check_arch(x) ((x) == EM_MIPS)
+#define ELF_USES_RELOCA
+
 #else
 #error unsupported CPU - please update the code
 #endif
@@ -1641,6 +1656,26 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
             error("rts expected at the end of %s", name);
         copy_size = p - p_start;
     }
+#elif defined(HOST_MIPS) || defined(HOST_MIPS64)
+    {
+#define INSN_RETURN     0x03e00008
+#define INSN_NOP        0x00000000
+
+        uint8_t *p = p_end;
+
+        if (p < (p_start + 0x8)) {
+            error("empty code for %s", name);
+        } else {
+            uint32_t end_insn1, end_insn2;
+
+            p -= 0x8;
+            end_insn1 = get32((uint32_t *)(p + 0x0));
+            end_insn2 = get32((uint32_t *)(p + 0x4));
+            if (end_insn1 != INSN_RETURN && end_insn2 != INSN_NOP)
+                error("jr ra not found at end of %s", name);
+        }
+        copy_size = p - p_start;
+    }
 #else
 #error unsupported CPU
 #endif
@@ -1715,8 +1750,9 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
 		    }
 #endif
 #if defined(__APPLE__)
-/* set __attribute((unused)) on darwin because we wan't to avoid warning when we don't use the symbol */
-                    fprintf(outfile, "extern char %s __attribute__((unused));\n", sym_name);
+                    /* Set __attribute((unused)) on darwin because we
+                       want to avoid warning when we don't use the symbol.  */
+                    fprintf(outfile, "    extern char %s __attribute__((unused));\n", sym_name);
 #elif defined(HOST_IA64)
 			if (ELF64_R_TYPE(rel->r_info) != R_IA64_PCREL21B)
 				/*
@@ -1801,7 +1837,7 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
             }
         }
 
-        /* load parameres in variables */
+        /* load parameters in variables */
         for(i = 0; i < nb_args; i++) {
             fprintf(outfile, "    param%d = *opparam_ptr++;\n", i + 1);
         }
@@ -2481,6 +2517,81 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                         error("unsupported m68k relocation (%d)", type);
                     }
                 }
+                }
+            }
+#elif defined(HOST_MIPS) || defined(HOST_MIPS64)
+            {
+                for (i = 0, rel = relocs; i < nb_relocs; i++, rel++) {
+		    if (rel->r_offset >= start_offset && rel->r_offset < start_offset + copy_size) {
+                        char name[256];
+                        int type;
+                        int addend;
+                        int reloc_offset;
+
+			sym_name = strtab + symtab[ELF32_R_SYM(rel->r_info)].st_name;
+                        /* the compiler leave some unnecessary references to the code */
+                        if (sym_name[0] == '\0')
+                            continue;
+                        get_reloc_expr(name, sizeof(name), sym_name);
+			type = ELF32_R_TYPE(rel->r_info);
+                        addend = get32((uint32_t *)(text + rel->r_offset));
+                        reloc_offset = rel->r_offset - start_offset;
+			switch (type) {
+			case R_MIPS_26:
+                            fprintf(outfile, "    /* R_MIPS_26 RELOC, offset 0x%x, name %s */\n",
+				    rel->r_offset, sym_name);
+                            fprintf(outfile,
+				    "    *(uint32_t *)(gen_code_ptr + 0x%x) = "
+				    "(0x%x & ~0x3fffff) "
+				    "| ((0x%x + ((%s - (*(uint32_t *)(gen_code_ptr + 0x%x))) >> 2)) "
+				    "   & 0x3fffff);\n",
+                                    reloc_offset, addend, addend, name, reloc_offset);
+			    break;
+			case R_MIPS_HI16:
+                            fprintf(outfile, "    /* R_MIPS_HI16 RELOC, offset 0x%x, name %s */\n",
+				    rel->r_offset, sym_name);
+                            fprintf(outfile,
+				    "    *(uint32_t *)(gen_code_ptr + 0x%x) = "
+				    "((*(uint32_t *)(gen_code_ptr + 0x%x)) "
+				    " & ~0xffff) "
+				    " | (((%s - 0x8000) >> 16) & 0xffff);\n",
+                                    reloc_offset, reloc_offset, name);
+			    break;
+			case R_MIPS_LO16:
+                            fprintf(outfile, "    /* R_MIPS_LO16 RELOC, offset 0x%x, name %s */\n",
+				    rel->r_offset, sym_name);
+                            fprintf(outfile,
+				    "    *(uint32_t *)(gen_code_ptr + 0x%x) = "
+				    "((*(uint32_t *)(gen_code_ptr + 0x%x)) "
+				    " & ~0xffff) "
+				    " | (%s & 0xffff);\n",
+                                    reloc_offset, reloc_offset, name);
+			    break;
+			case R_MIPS_PC16:
+                            fprintf(outfile, "    /* R_MIPS_PC16 RELOC, offset 0x%x, name %s */\n",
+				    rel->r_offset, sym_name);
+                            fprintf(outfile,
+				    "    *(uint32_t *)(gen_code_ptr + 0x%x) = "
+				    "(0x%x & ~0xffff) "
+				    "| ((0x%x + ((%s - (*(uint32_t *)(gen_code_ptr + 0x%x))) >> 2)) "
+				    "   & 0xffff);\n",
+                                    reloc_offset, addend, addend, name, reloc_offset);
+			    break;
+			case R_MIPS_GOT16:
+			case R_MIPS_CALL16:
+                            fprintf(outfile, "    /* R_MIPS_GOT16 RELOC, offset 0x%x, name %s */\n",
+				    rel->r_offset, sym_name);
+                            fprintf(outfile,
+				    "    *(uint32_t *)(gen_code_ptr + 0x%x) = "
+				    "((*(uint32_t *)(gen_code_ptr + 0x%x)) "
+				    " & ~0xffff) "
+				    " | (((%s - 0x8000) >> 16) & 0xffff);\n",
+                                    reloc_offset, reloc_offset, name);
+			    break;
+			default:
+			    error("unsupported MIPS relocation (%d)", type);
+			}
+		    }
                 }
             }
 #else

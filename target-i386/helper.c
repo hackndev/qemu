@@ -106,14 +106,6 @@ void cpu_unlock(void)
     spin_unlock(&global_cpu_lock);
 }
 
-void cpu_loop_exit(void)
-{
-    /* NOTE: the register at this point must be saved by hand because
-       longjmp restore them */
-    regs_to_env();
-    longjmp(env->jmp_env, 1);
-}
-
 /* return non zero if error */
 static inline int load_segment(uint32_t *e1_ptr, uint32_t *e2_ptr,
                                int selector)
@@ -687,7 +679,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
     if (!(e2 & DESC_P_MASK))
         raise_exception_err(EXCP0B_NOSEG, selector & 0xfffc);
     if (!(e2 & DESC_C_MASK) && dpl < cpl) {
-        /* to inner priviledge */
+        /* to inner privilege */
         get_ss_esp_from_tss(&ss, &esp, dpl);
         if ((ss & 0xfffc) == 0)
             raise_exception_err(EXCP0A_TSS, ss & 0xfffc);
@@ -708,7 +700,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
         sp_mask = get_sp_mask(ss_e2);
         ssp = get_seg_base(ss_e1, ss_e2);
     } else if ((e2 & DESC_C_MASK) || dpl == cpl) {
-        /* to same priviledge */
+        /* to same privilege */
         if (env->eflags & VM_MASK)
             raise_exception_err(EXCP0D_GPF, selector & 0xfffc);
         new_stack = 0;
@@ -901,7 +893,7 @@ static void do_interrupt64(int intno, int is_int, int error_code,
     if (!(e2 & DESC_L_MASK) || (e2 & DESC_B_MASK))
         raise_exception_err(EXCP0D_GPF, selector & 0xfffc);
     if ((!(e2 & DESC_C_MASK) && dpl < cpl) || ist != 0) {
-        /* to inner priviledge */
+        /* to inner privilege */
         if (ist != 0)
             esp = get_rsp_from_tss(ist + 3);
         else
@@ -910,7 +902,7 @@ static void do_interrupt64(int intno, int is_int, int error_code,
         ss = 0;
         new_stack = 1;
     } else if ((e2 & DESC_C_MASK) || dpl == cpl) {
-        /* to same priviledge */
+        /* to same privilege */
         if (env->eflags & VM_MASK)
             raise_exception_err(EXCP0D_GPF, selector & 0xfffc);
         new_stack = 0;
@@ -2208,7 +2200,7 @@ void helper_lcall_protected_T0_T1(int shift, int next_eip_addend)
             raise_exception_err(EXCP0B_NOSEG, selector & 0xfffc);
 
         if (!(e2 & DESC_C_MASK) && dpl < cpl) {
-            /* to inner priviledge */
+            /* to inner privilege */
             get_ss_esp_from_tss(&ss, &sp, dpl);
 #ifdef DEBUG_PCALL
             if (loglevel & CPU_LOG_PCALL)
@@ -2255,7 +2247,7 @@ void helper_lcall_protected_T0_T1(int shift, int next_eip_addend)
             }
             new_stack = 1;
         } else {
-            /* to same priviledge */
+            /* to same privilege */
             sp = ESP;
             sp_mask = get_sp_mask(env->segs[R_SS].flags);
             ssp = env->segs[R_SS].base;
@@ -2437,7 +2429,7 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
                        get_seg_limit(e1, e2),
                        e2);
     } else {
-        /* return to different priviledge level */
+        /* return to different privilege level */
 #ifdef TARGET_X86_64
         if (shift == 2) {
             POPQ(sp, new_esp);
@@ -3620,50 +3612,6 @@ static void neg128(uint64_t *plow, uint64_t *phigh)
     add128(plow, phigh, 1, 0);
 }
 
-static void mul64(uint64_t *plow, uint64_t *phigh, uint64_t a, uint64_t b)
-{
-    uint32_t a0, a1, b0, b1;
-    uint64_t v;
-
-    a0 = a;
-    a1 = a >> 32;
-
-    b0 = b;
-    b1 = b >> 32;
-    
-    v = (uint64_t)a0 * (uint64_t)b0;
-    *plow = v;
-    *phigh = 0;
-
-    v = (uint64_t)a0 * (uint64_t)b1;
-    add128(plow, phigh, v << 32, v >> 32);
-    
-    v = (uint64_t)a1 * (uint64_t)b0;
-    add128(plow, phigh, v << 32, v >> 32);
-    
-    v = (uint64_t)a1 * (uint64_t)b1;
-    *phigh += v;
-#ifdef DEBUG_MULDIV
-    printf("mul: 0x%016" PRIx64 " * 0x%016" PRIx64 " = 0x%016" PRIx64 "%016" PRIx64 "\n",
-           a, b, *phigh, *plow);
-#endif
-}
-
-static void imul64(uint64_t *plow, uint64_t *phigh, int64_t a, int64_t b)
-{
-    int sa, sb;
-    sa = (a < 0);
-    if (sa)
-        a = -a;
-    sb = (b < 0);
-    if (sb)
-        b = -b;
-    mul64(plow, phigh, a, b);
-    if (sa ^ sb) {
-        neg128(plow, phigh);
-    }
-}
-
 /* return TRUE if overflow */
 static int div64(uint64_t *plow, uint64_t *phigh, uint64_t b)
 {
@@ -3731,7 +3679,7 @@ void helper_mulq_EAX_T0(void)
 {
     uint64_t r0, r1;
 
-    mul64(&r0, &r1, EAX, T0);
+    mulu64(&r1, &r0, EAX, T0);
     EAX = r0;
     EDX = r1;
     CC_DST = r0;
@@ -3742,7 +3690,7 @@ void helper_imulq_EAX_T0(void)
 {
     uint64_t r0, r1;
 
-    imul64(&r0, &r1, EAX, T0);
+    muls64(&r1, &r0, EAX, T0);
     EAX = r0;
     EDX = r1;
     CC_DST = r0;
@@ -3753,7 +3701,7 @@ void helper_imulq_T0_T1(void)
 {
     uint64_t r0, r1;
 
-    imul64(&r0, &r1, T0, T1);
+    muls64(&r1, &r0, T0, T1);
     T0 = r0;
     CC_DST = r0;
     CC_SRC = ((int64_t)r1 != ((int64_t)r0 >> 63));

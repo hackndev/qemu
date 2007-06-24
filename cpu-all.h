@@ -20,7 +20,7 @@
 #ifndef CPU_ALL_H
 #define CPU_ALL_H
 
-#if defined(__arm__) || defined(__sparc__)
+#if defined(__arm__) || defined(__sparc__) || defined(__mips__)
 #define WORDS_ALIGNED
 #endif
 
@@ -692,77 +692,6 @@ int page_get_flags(target_ulong address);
 void page_set_flags(target_ulong start, target_ulong end, int flags);
 void page_unprotect_range(target_ulong data, target_ulong data_size);
 
-#define SINGLE_CPU_DEFINES
-#ifdef SINGLE_CPU_DEFINES
-
-#if defined(TARGET_I386)
-
-#define CPUState CPUX86State
-#define cpu_init cpu_x86_init
-#define cpu_exec cpu_x86_exec
-#define cpu_gen_code cpu_x86_gen_code
-#define cpu_signal_handler cpu_x86_signal_handler
-
-#elif defined(TARGET_ARM)
-
-#define CPUState CPUARMState
-#define cpu_init cpu_arm_init
-#define cpu_exec cpu_arm_exec
-#define cpu_gen_code cpu_arm_gen_code
-#define cpu_signal_handler cpu_arm_signal_handler
-
-#elif defined(TARGET_SPARC)
-
-#define CPUState CPUSPARCState
-#define cpu_init cpu_sparc_init
-#define cpu_exec cpu_sparc_exec
-#define cpu_gen_code cpu_sparc_gen_code
-#define cpu_signal_handler cpu_sparc_signal_handler
-
-#elif defined(TARGET_PPC)
-
-#define CPUState CPUPPCState
-#define cpu_init cpu_ppc_init
-#define cpu_exec cpu_ppc_exec
-#define cpu_gen_code cpu_ppc_gen_code
-#define cpu_signal_handler cpu_ppc_signal_handler
-
-#elif defined(TARGET_M68K)
-#define CPUState CPUM68KState
-#define cpu_init cpu_m68k_init
-#define cpu_exec cpu_m68k_exec
-#define cpu_gen_code cpu_m68k_gen_code
-#define cpu_signal_handler cpu_m68k_signal_handler
-
-#elif defined(TARGET_MIPS)
-#define CPUState CPUMIPSState
-#define cpu_init cpu_mips_init
-#define cpu_exec cpu_mips_exec
-#define cpu_gen_code cpu_mips_gen_code
-#define cpu_signal_handler cpu_mips_signal_handler
-
-#elif defined(TARGET_SH4)
-#define CPUState CPUSH4State
-#define cpu_init cpu_sh4_init
-#define cpu_exec cpu_sh4_exec
-#define cpu_gen_code cpu_sh4_gen_code
-#define cpu_signal_handler cpu_sh4_signal_handler
-
-#elif defined(TARGET_ALPHA)
-#define CPUState CPUAlphaState
-#define cpu_init cpu_alpha_init
-#define cpu_exec cpu_alpha_exec
-#define cpu_gen_code cpu_alpha_gen_code
-#define cpu_signal_handler cpu_alpha_signal_handler
-
-#else
-
-#error unsupported target CPU
-
-#endif
-
-#endif /* SINGLE_CPU_DEFINES */
-
 CPUState *cpu_copy(CPUState *env);
 
 void cpu_dump_state(CPUState *env, FILE *f, 
@@ -858,6 +787,7 @@ extern uint8_t *phys_ram_dirty;
    exception, the write memory callback gets the ram offset instead of
    the physical address */
 #define IO_MEM_ROMD        (1)
+#define IO_MEM_SUBPAGE     (2)
 
 typedef void CPUWriteMemoryFunc(void *opaque, target_phys_addr_t addr, uint32_t value);
 typedef uint32_t CPUReadMemoryFunc(void *opaque, target_phys_addr_t addr);
@@ -1022,10 +952,31 @@ static inline int64_t cpu_get_real_ticks (void)
         return rval.i64;
 #endif
 }
+
+#elif defined(__mips__)
+
+static inline int64_t cpu_get_real_ticks(void)
+{
+#if __mips_isa_rev >= 2
+    uint32_t count;
+    static uint32_t cyc_per_count = 0;
+
+    if (!cyc_per_count)
+        __asm__ __volatile__("rdhwr %0, $3" : "=r" (cyc_per_count));
+
+    __asm__ __volatile__("rdhwr %1, $2" : "=r" (count));
+    return (int64_t)(count * cyc_per_count);
+#else
+    /* FIXME */
+    static int64_t ticks = 0;
+    return ticks++;
+#endif
+}
+
 #else
 /* The host CPU doesn't have an easily accessible cycle counter.
-   Just return a monotonically increasing vlue.  This will be totally wrong,
-   but hopefully better than nothing.  */
+   Just return a monotonically increasing value.  This will be
+   totally wrong, but hopefully better than nothing.  */
 static inline int64_t cpu_get_real_ticks (void)
 {
     static int64_t ticks = 0;

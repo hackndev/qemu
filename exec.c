@@ -48,6 +48,7 @@
 //#define DEBUG_TLB_CHECK 
 
 //#define DEBUG_IOPORT
+//#define DEBUG_SUBPAGE
 
 #if !defined(CONFIG_USER_ONLY)
 /* TB consistency checks only implemented for usermode emulation.  */
@@ -64,6 +65,8 @@
 
 #if defined(TARGET_SPARC64)
 #define TARGET_PHYS_ADDR_SPACE_BITS 41
+#elif defined(TARGET_SPARC)
+#define TARGET_PHYS_ADDR_SPACE_BITS 36
 #elif defined(TARGET_ALPHA)
 #define TARGET_PHYS_ADDR_SPACE_BITS 42
 #define TARGET_VIRT_ADDR_SPACE_BITS 42
@@ -154,6 +157,14 @@ int loglevel;
 static int tlb_flush_count;
 static int tb_flush_count;
 static int tb_phys_invalidate_count;
+
+#define SUBPAGE_IDX(addr) ((addr) & ~TARGET_PAGE_MASK)
+typedef struct subpage_t {
+    target_phys_addr_t base;
+    CPUReadMemoryFunc **mem_read[TARGET_PAGE_SIZE];
+    CPUWriteMemoryFunc **mem_write[TARGET_PAGE_SIZE];
+    void *opaque[TARGET_PAGE_SIZE];
+} subpage_t;
 
 static void page_init(void)
 {
@@ -1209,7 +1220,7 @@ CPULogItem cpu_log_items[] = {
     { CPU_LOG_EXEC, "exec",
       "show trace before each executed TB (lots of logs)" },
     { CPU_LOG_TB_CPU, "cpu",
-      "show CPU state before bloc translation" },
+      "show CPU state before block translation" },
 #ifdef TARGET_I386
     { CPU_LOG_PCALL, "pcall",
       "show protected mode far calls/returns/exceptions" },
@@ -1275,6 +1286,10 @@ void cpu_abort(CPUState *env, const char *fmt, ...)
     cpu_dump_state(env, stderr, fprintf, 0);
 #endif
     va_end(ap);
+    if (logfile) {
+        fflush(logfile);
+        fclose(logfile);
+    }
     abort();
 }
 
@@ -1896,6 +1911,30 @@ static inline void tlb_set_dirty(CPUState *env,
 }
 #endif /* defined(CONFIG_USER_ONLY) */
 
+static int subpage_register (subpage_t *mmio, uint32_t start, uint32_t end,
+                             int memory);
+static void *subpage_init (target_phys_addr_t base, uint32_t *phys,
+                           int orig_memory);
+#define CHECK_SUBPAGE(addr, start_addr, start_addr2, end_addr, end_addr2, \
+                      need_subpage)                                     \
+    do {                                                                \
+        if (addr > start_addr)                                          \
+            start_addr2 = 0;                                            \
+        else {                                                          \
+            start_addr2 = start_addr & ~TARGET_PAGE_MASK;               \
+            if (start_addr2 > 0)                                        \
+                need_subpage = 1;                                       \
+        }                                                               \
+                                                                        \
+        if ((start_addr + orig_size) - addr >= TARGET_PAGE_SIZE)        \
+            end_addr2 = TARGET_PAGE_SIZE - 1;                           \
+        else {                                                          \
+            end_addr2 = (start_addr + orig_size - 1) & ~TARGET_PAGE_MASK; \
+            if (end_addr2 < TARGET_PAGE_SIZE - 1)                       \
+                need_subpage = 1;                                       \
+        }                                                               \
+    } while (0)
+
 /* register physical memory. 'size' must be a multiple of the target
    page size. If (phys_offset & ~TARGET_PAGE_MASK) != 0, then it is an
    io memory page */
@@ -1906,15 +1945,56 @@ void cpu_register_physical_memory(target_phys_addr_t start_addr,
     target_phys_addr_t addr, end_addr;
     PhysPageDesc *p;
     CPUState *env;
+    unsigned long orig_size = size;
+    void *subpage;
 
     size = (size + TARGET_PAGE_SIZE - 1) & TARGET_PAGE_MASK;
-    end_addr = start_addr + size;
+    end_addr = start_addr + (target_phys_addr_t)size;
     for(addr = start_addr; addr != end_addr; addr += TARGET_PAGE_SIZE) {
-        p = phys_page_find_alloc(addr >> TARGET_PAGE_BITS, 1);
-        p->phys_offset = phys_offset;
-        if ((phys_offset & ~TARGET_PAGE_MASK) <= IO_MEM_ROM ||
-            (phys_offset & IO_MEM_ROMD))
-            phys_offset += TARGET_PAGE_SIZE;
+        p = phys_page_find(addr >> TARGET_PAGE_BITS);
+        if (p && p->phys_offset != IO_MEM_UNASSIGNED) {
+            unsigned long orig_memory = p->phys_offset;
+            target_phys_addr_t start_addr2, end_addr2;
+            int need_subpage = 0;
+
+            CHECK_SUBPAGE(addr, start_addr, start_addr2, end_addr, end_addr2,
+                          need_subpage);
+            if (need_subpage) {
+                if (!(orig_memory & IO_MEM_SUBPAGE)) {
+                    subpage = subpage_init((addr & TARGET_PAGE_MASK),
+                                           &p->phys_offset, orig_memory);
+                } else {
+                    subpage = io_mem_opaque[(orig_memory & ~TARGET_PAGE_MASK)
+                                            >> IO_MEM_SHIFT];
+                }
+                subpage_register(subpage, start_addr2, end_addr2, phys_offset);
+            } else {
+                p->phys_offset = phys_offset;
+                if ((phys_offset & ~TARGET_PAGE_MASK) <= IO_MEM_ROM ||
+                    (phys_offset & IO_MEM_ROMD))
+                    phys_offset += TARGET_PAGE_SIZE;
+            }
+        } else {
+            p = phys_page_find_alloc(addr >> TARGET_PAGE_BITS, 1);
+            p->phys_offset = phys_offset;
+            if ((phys_offset & ~TARGET_PAGE_MASK) <= IO_MEM_ROM ||
+                (phys_offset & IO_MEM_ROMD))
+                phys_offset += TARGET_PAGE_SIZE;
+            else {
+                target_phys_addr_t start_addr2, end_addr2;
+                int need_subpage = 0;
+
+                CHECK_SUBPAGE(addr, start_addr, start_addr2, end_addr,
+                              end_addr2, need_subpage);
+
+                if (need_subpage) {
+                    subpage = subpage_init((addr & TARGET_PAGE_MASK),
+                                           &p->phys_offset, IO_MEM_UNASSIGNED);
+                    subpage_register(subpage, start_addr2, end_addr2,
+                                     phys_offset);
+                }
+            }
+        }
     }
     
     /* since each CPU stores ram addresses in its TLB cache, we must
@@ -1957,7 +2037,10 @@ void qemu_ram_free(ram_addr_t addr)
 static uint32_t unassigned_mem_readb(void *opaque, target_phys_addr_t addr)
 {
 #ifdef DEBUG_UNASSIGNED
-    printf("Unassigned mem read  0x%08x\n", (int)addr);
+    printf("Unassigned mem read " TARGET_FMT_lx "\n", addr);
+#endif
+#ifdef TARGET_SPARC
+    do_unassigned_access(addr, 0, 0, 0);
 #endif
     return 0;
 }
@@ -1965,7 +2048,10 @@ static uint32_t unassigned_mem_readb(void *opaque, target_phys_addr_t addr)
 static void unassigned_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
 #ifdef DEBUG_UNASSIGNED
-    printf("Unassigned mem write 0x%08x = 0x%x\n", (int)addr, val);
+    printf("Unassigned mem write " TARGET_FMT_lx " = 0x%x\n", addr, val);
+#endif
+#ifdef TARGET_SPARC
+    do_unassigned_access(addr, 1, 0, 0);
 #endif
 }
 
@@ -2149,6 +2235,149 @@ static CPUWriteMemoryFunc *watch_mem_write[3] = {
     watch_mem_writel,
 };
 #endif
+
+static inline uint32_t subpage_readlen (subpage_t *mmio, target_phys_addr_t addr,
+                                 unsigned int len)
+{
+    CPUReadMemoryFunc **mem_read;
+    uint32_t ret;
+    unsigned int idx;
+
+    idx = SUBPAGE_IDX(addr - mmio->base);
+#if defined(DEBUG_SUBPAGE)
+    printf("%s: subpage %p len %d addr " TARGET_FMT_plx " idx %d\n", __func__,
+           mmio, len, addr, idx);
+#endif
+    mem_read = mmio->mem_read[idx];
+    ret = (*mem_read[len])(mmio->opaque[idx], addr);
+
+    return ret;
+}
+
+static inline void subpage_writelen (subpage_t *mmio, target_phys_addr_t addr,
+                              uint32_t value, unsigned int len)
+{
+    CPUWriteMemoryFunc **mem_write;
+    unsigned int idx;
+
+    idx = SUBPAGE_IDX(addr - mmio->base);
+#if defined(DEBUG_SUBPAGE)
+    printf("%s: subpage %p len %d addr " TARGET_FMT_plx " idx %d value %08x\n", __func__,
+           mmio, len, addr, idx, value);
+#endif
+    mem_write = mmio->mem_write[idx];
+    (*mem_write[len])(mmio->opaque[idx], addr, value);
+}
+
+static uint32_t subpage_readb (void *opaque, target_phys_addr_t addr)
+{
+#if defined(DEBUG_SUBPAGE)
+    printf("%s: addr " TARGET_FMT_plx "\n", __func__, addr);
+#endif
+
+    return subpage_readlen(opaque, addr, 0);
+}
+
+static void subpage_writeb (void *opaque, target_phys_addr_t addr,
+                            uint32_t value)
+{
+#if defined(DEBUG_SUBPAGE)
+    printf("%s: addr " TARGET_FMT_plx " val %08x\n", __func__, addr, value);
+#endif
+    subpage_writelen(opaque, addr, value, 0);
+}
+
+static uint32_t subpage_readw (void *opaque, target_phys_addr_t addr)
+{
+#if defined(DEBUG_SUBPAGE)
+    printf("%s: addr " TARGET_FMT_plx "\n", __func__, addr);
+#endif
+
+    return subpage_readlen(opaque, addr, 1);
+}
+
+static void subpage_writew (void *opaque, target_phys_addr_t addr,
+                            uint32_t value)
+{
+#if defined(DEBUG_SUBPAGE)
+    printf("%s: addr " TARGET_FMT_plx " val %08x\n", __func__, addr, value);
+#endif
+    subpage_writelen(opaque, addr, value, 1);
+}
+
+static uint32_t subpage_readl (void *opaque, target_phys_addr_t addr)
+{
+#if defined(DEBUG_SUBPAGE)
+    printf("%s: addr " TARGET_FMT_plx "\n", __func__, addr);
+#endif
+
+    return subpage_readlen(opaque, addr, 2);
+}
+
+static void subpage_writel (void *opaque,
+                         target_phys_addr_t addr, uint32_t value)
+{
+#if defined(DEBUG_SUBPAGE)
+    printf("%s: addr " TARGET_FMT_plx " val %08x\n", __func__, addr, value);
+#endif
+    subpage_writelen(opaque, addr, value, 2);
+}
+
+static CPUReadMemoryFunc *subpage_read[] = {
+    &subpage_readb,
+    &subpage_readw,
+    &subpage_readl,
+};
+
+static CPUWriteMemoryFunc *subpage_write[] = {
+    &subpage_writeb,
+    &subpage_writew,
+    &subpage_writel,
+};
+
+static int subpage_register (subpage_t *mmio, uint32_t start, uint32_t end,
+                             int memory)
+{
+    int idx, eidx;
+
+    if (start >= TARGET_PAGE_SIZE || end >= TARGET_PAGE_SIZE)
+        return -1;
+    idx = SUBPAGE_IDX(start);
+    eidx = SUBPAGE_IDX(end);
+#if defined(DEBUG_SUBPAGE)
+    printf("%s: %p start %08x end %08x idx %08x eidx %08x mem %d\n", __func__,
+           mmio, start, end, idx, eidx, memory);
+#endif
+    memory >>= IO_MEM_SHIFT;
+    for (; idx <= eidx; idx++) {
+        mmio->mem_read[idx] = io_mem_read[memory];
+        mmio->mem_write[idx] = io_mem_write[memory];
+        mmio->opaque[idx] = io_mem_opaque[memory];
+    }
+
+    return 0;
+}
+
+static void *subpage_init (target_phys_addr_t base, uint32_t *phys,
+                           int orig_memory)
+{
+    subpage_t *mmio;
+    int subpage_memory;
+
+    mmio = qemu_mallocz(sizeof(subpage_t));
+    if (mmio != NULL) {
+        mmio->base = base;
+        subpage_memory = cpu_register_io_memory(0, subpage_read, subpage_write, mmio);
+#if defined(DEBUG_SUBPAGE)
+        printf("%s: %p base " TARGET_FMT_plx " len %08x %d\n", __func__,
+               mmio, base, TARGET_PAGE_SIZE, subpage_memory);
+#endif
+        *phys = subpage_memory | IO_MEM_SUBPAGE;
+        subpage_register(mmio, 0, TARGET_PAGE_SIZE - 1, orig_memory);
+    }
+
+    return mmio;
+}
 
 static void io_mem_init(void)
 {

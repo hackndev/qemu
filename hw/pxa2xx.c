@@ -129,6 +129,26 @@ static CPUWriteMemoryFunc *pxa2xx_pm_writefn[] = {
     pxa2xx_pm_write,
 };
 
+static void pxa2xx_pm_save(QEMUFile *f, void *opaque)
+{
+    struct pxa2xx_state_s *s = (struct pxa2xx_state_s *) opaque;
+    int i;
+
+    for (i = 0; i < 0x40; i ++)
+        qemu_put_be32s(f, &s->pm_regs[i]);
+}
+
+static int pxa2xx_pm_load(QEMUFile *f, void *opaque, int version_id)
+{
+    struct pxa2xx_state_s *s = (struct pxa2xx_state_s *) opaque;
+    int i;
+
+    for (i = 0; i < 0x40; i ++)
+        qemu_get_be32s(f, &s->pm_regs[i]);
+
+    return 0;
+}
+
 #define CCCR	0x00	/* Core Clock Configuration register */
 #define CKEN	0x04	/* Clock Enable register */
 #define OSCC	0x08	/* Oscillator Configuration register */
@@ -168,9 +188,10 @@ static void pxa2xx_cm_write(void *opaque, target_phys_addr_t addr,
         break;
 
     case OSCC:
-        s->cm_regs[OSCC >> 2] &= ~0x6e;
-        s->cm_regs[OSCC >> 2] |= value & 0x6e;
-        s->cm_regs[OSCC >> 2] |= (value >> 1) & 1; /* Oscillator is now stable */
+        s->cm_regs[addr >> 2] &= ~0x6c;
+        s->cm_regs[addr >> 2] |= value & 0x6e;
+        if ((value >> 1) & 1)			/* OON */
+            s->cm_regs[addr >> 2] |= 1 << 0;	/* Oscillator is now stable */
         break;
 
     default:
@@ -190,6 +211,30 @@ static CPUWriteMemoryFunc *pxa2xx_cm_writefn[] = {
     pxa2xx_cm_write,
     pxa2xx_cm_write,
 };
+
+static void pxa2xx_cm_save(QEMUFile *f, void *opaque)
+{
+    struct pxa2xx_state_s *s = (struct pxa2xx_state_s *) opaque;
+    int i;
+
+    for (i = 0; i < 4; i ++)
+        qemu_put_be32s(f, &s->cm_regs[i]);
+    qemu_put_be32s(f, &s->clkcfg);
+    qemu_put_be32s(f, &s->pmnc);
+}
+
+static int pxa2xx_cm_load(QEMUFile *f, void *opaque, int version_id)
+{
+    struct pxa2xx_state_s *s = (struct pxa2xx_state_s *) opaque;
+    int i;
+
+    for (i = 0; i < 4; i ++)
+        qemu_get_be32s(f, &s->cm_regs[i]);
+    qemu_get_be32s(f, &s->clkcfg);
+    qemu_get_be32s(f, &s->pmnc);
+
+    return 0;
+}
 
 static uint32_t pxa2xx_clkpwr_read(void *opaque, int op2, int reg, int crm)
 {
@@ -252,7 +297,7 @@ static void pxa2xx_clkpwr_write(void *opaque, int op2, int reg, int crm,
                     ARM_CPU_MODE_SVC | CPSR_A | CPSR_F | CPSR_I;
             s->env->cp15.c1_sys = 0;
             s->env->cp15.c1_coproc = 0;
-            s->env->cp15.c2 = 0;
+            s->env->cp15.c2_base = 0;
             s->env->cp15.c3 = 0;
             s->pm_regs[PSSR >> 2] |= 0x8;	/* Set STS */
             s->pm_regs[RCSR >> 2] |= 0x8;	/* Set GPR */
@@ -468,6 +513,26 @@ static CPUWriteMemoryFunc *pxa2xx_mm_writefn[] = {
     pxa2xx_mm_write,
     pxa2xx_mm_write,
 };
+
+static void pxa2xx_mm_save(QEMUFile *f, void *opaque)
+{
+    struct pxa2xx_state_s *s = (struct pxa2xx_state_s *) opaque;
+    int i;
+
+    for (i = 0; i < 0x1a; i ++)
+        qemu_put_be32s(f, &s->mm_regs[i]);
+}
+
+static int pxa2xx_mm_load(QEMUFile *f, void *opaque, int version_id)
+{
+    struct pxa2xx_state_s *s = (struct pxa2xx_state_s *) opaque;
+    int i;
+
+    for (i = 0; i < 0x1a; i ++)
+        qemu_get_be32s(f, &s->mm_regs[i]);
+
+    return 0;
+}
 
 /* Synchronous Serial Ports */
 struct pxa2xx_ssp_s {
@@ -747,6 +812,53 @@ static CPUWriteMemoryFunc *pxa2xx_ssp_writefn[] = {
     pxa2xx_ssp_write,
     pxa2xx_ssp_write,
 };
+
+static void pxa2xx_ssp_save(QEMUFile *f, void *opaque)
+{
+    struct pxa2xx_ssp_s *s = (struct pxa2xx_ssp_s *) opaque;
+    int i;
+
+    qemu_put_be32(f, s->enable);
+
+    qemu_put_be32s(f, &s->sscr[0]);
+    qemu_put_be32s(f, &s->sscr[1]);
+    qemu_put_be32s(f, &s->sspsp);
+    qemu_put_be32s(f, &s->ssto);
+    qemu_put_be32s(f, &s->ssitr);
+    qemu_put_be32s(f, &s->sssr);
+    qemu_put_8s(f, &s->sstsa);
+    qemu_put_8s(f, &s->ssrsa);
+    qemu_put_8s(f, &s->ssacd);
+
+    qemu_put_byte(f, s->rx_level);
+    for (i = 0; i < s->rx_level; i ++)
+        qemu_put_byte(f, s->rx_fifo[(s->rx_start + i) & 0xf]);
+}
+
+static int pxa2xx_ssp_load(QEMUFile *f, void *opaque, int version_id)
+{
+    struct pxa2xx_ssp_s *s = (struct pxa2xx_ssp_s *) opaque;
+    int i;
+
+    s->enable = qemu_get_be32(f);
+
+    qemu_get_be32s(f, &s->sscr[0]);
+    qemu_get_be32s(f, &s->sscr[1]);
+    qemu_get_be32s(f, &s->sspsp);
+    qemu_get_be32s(f, &s->ssto);
+    qemu_get_be32s(f, &s->ssitr);
+    qemu_get_be32s(f, &s->sssr);
+    qemu_get_8s(f, &s->sstsa);
+    qemu_get_8s(f, &s->ssrsa);
+    qemu_get_8s(f, &s->ssacd);
+
+    s->rx_level = qemu_get_byte(f);
+    s->rx_start = 0;
+    for (i = 0; i < s->rx_level; i ++)
+        s->rx_fifo[i] = qemu_get_byte(f);
+
+    return 0;
+}
 
 /* Real-Time Clock */
 #define RCNR		0x00	/* RTC Counter register */
@@ -1039,7 +1151,19 @@ static void pxa2xx_rtc_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static void pxa2xx_rtc_reset(struct pxa2xx_state_s *s)
+static CPUReadMemoryFunc *pxa2xx_rtc_readfn[] = {
+    pxa2xx_rtc_read,
+    pxa2xx_rtc_read,
+    pxa2xx_rtc_read,
+};
+
+static CPUWriteMemoryFunc *pxa2xx_rtc_writefn[] = {
+    pxa2xx_rtc_write,
+    pxa2xx_rtc_write,
+    pxa2xx_rtc_write,
+};
+
+static void pxa2xx_rtc_init(struct pxa2xx_state_s *s)
 {
     struct tm *tm;
     time_t ti;
@@ -1073,17 +1197,308 @@ static void pxa2xx_rtc_reset(struct pxa2xx_state_s *s)
     s->rtc_pi    = qemu_new_timer(rt_clock, pxa2xx_rtc_pi_tick,    s);
 }
 
-static CPUReadMemoryFunc *pxa2xx_rtc_readfn[] = {
-    pxa2xx_rtc_read,
-    pxa2xx_rtc_read,
-    pxa2xx_rtc_read,
+static void pxa2xx_rtc_save(QEMUFile *f, void *opaque)
+{
+    struct pxa2xx_state_s *s = (struct pxa2xx_state_s *) opaque;
+
+    pxa2xx_rtc_hzupdate(s);
+    pxa2xx_rtc_piupdate(s);
+    pxa2xx_rtc_swupdate(s);
+
+    qemu_put_be32s(f, &s->rttr);
+    qemu_put_be32s(f, &s->rtsr);
+    qemu_put_be32s(f, &s->rtar);
+    qemu_put_be32s(f, &s->rdar1);
+    qemu_put_be32s(f, &s->rdar2);
+    qemu_put_be32s(f, &s->ryar1);
+    qemu_put_be32s(f, &s->ryar2);
+    qemu_put_be32s(f, &s->swar1);
+    qemu_put_be32s(f, &s->swar2);
+    qemu_put_be32s(f, &s->piar);
+    qemu_put_be32s(f, &s->last_rcnr);
+    qemu_put_be32s(f, &s->last_rdcr);
+    qemu_put_be32s(f, &s->last_rycr);
+    qemu_put_be32s(f, &s->last_swcr);
+    qemu_put_be32s(f, &s->last_rtcpicr);
+    qemu_put_be64s(f, &s->last_hz);
+    qemu_put_be64s(f, &s->last_sw);
+    qemu_put_be64s(f, &s->last_pi);
+}
+
+static int pxa2xx_rtc_load(QEMUFile *f, void *opaque, int version_id)
+{
+    struct pxa2xx_state_s *s = (struct pxa2xx_state_s *) opaque;
+
+    qemu_get_be32s(f, &s->rttr);
+    qemu_get_be32s(f, &s->rtsr);
+    qemu_get_be32s(f, &s->rtar);
+    qemu_get_be32s(f, &s->rdar1);
+    qemu_get_be32s(f, &s->rdar2);
+    qemu_get_be32s(f, &s->ryar1);
+    qemu_get_be32s(f, &s->ryar2);
+    qemu_get_be32s(f, &s->swar1);
+    qemu_get_be32s(f, &s->swar2);
+    qemu_get_be32s(f, &s->piar);
+    qemu_get_be32s(f, &s->last_rcnr);
+    qemu_get_be32s(f, &s->last_rdcr);
+    qemu_get_be32s(f, &s->last_rycr);
+    qemu_get_be32s(f, &s->last_swcr);
+    qemu_get_be32s(f, &s->last_rtcpicr);
+    qemu_get_be64s(f, &s->last_hz);
+    qemu_get_be64s(f, &s->last_sw);
+    qemu_get_be64s(f, &s->last_pi);
+
+    pxa2xx_rtc_alarm_update(s, s->rtsr);
+
+    return 0;
+}
+
+/* I2C Interface */
+struct pxa2xx_i2c_s {
+    i2c_slave slave;
+    i2c_bus *bus;
+    target_phys_addr_t base;
+    qemu_irq irq;
+
+    uint16_t control;
+    uint16_t status;
+    uint8_t ibmr;
+    uint8_t data;
 };
 
-static CPUWriteMemoryFunc *pxa2xx_rtc_writefn[] = {
-    pxa2xx_rtc_write,
-    pxa2xx_rtc_write,
-    pxa2xx_rtc_write,
+#define IBMR	0x80	/* I2C Bus Monitor register */
+#define IDBR	0x88	/* I2C Data Buffer register */
+#define ICR	0x90	/* I2C Control register */
+#define ISR	0x98	/* I2C Status register */
+#define ISAR	0xa0	/* I2C Slave Address register */
+
+static void pxa2xx_i2c_update(struct pxa2xx_i2c_s *s)
+{
+    uint16_t level = 0;
+    level |= s->status & s->control & (1 << 10);		/* BED */
+    level |= (s->status & (1 << 7)) && (s->control & (1 << 9));	/* IRF */
+    level |= (s->status & (1 << 6)) && (s->control & (1 << 8));	/* ITE */
+    level |= s->status & (1 << 9);				/* SAD */
+    qemu_set_irq(s->irq, !!level);
+}
+
+/* These are only stubs now.  */
+static void pxa2xx_i2c_event(i2c_slave *i2c, enum i2c_event event)
+{
+    struct pxa2xx_i2c_s *s = (struct pxa2xx_i2c_s *) i2c;
+
+    switch (event) {
+    case I2C_START_SEND:
+        s->status |= (1 << 9);				/* set SAD */
+        s->status &= ~(1 << 0);				/* clear RWM */
+        break;
+    case I2C_START_RECV:
+        s->status |= (1 << 9);				/* set SAD */
+        s->status |= 1 << 0;				/* set RWM */
+        break;
+    case I2C_FINISH:
+        s->status |= (1 << 4);				/* set SSD */
+        break;
+    case I2C_NACK:
+        s->status |= 1 << 1;				/* set ACKNAK */
+        break;
+    }
+    pxa2xx_i2c_update(s);
+}
+
+static int pxa2xx_i2c_rx(i2c_slave *i2c)
+{
+    struct pxa2xx_i2c_s *s = (struct pxa2xx_i2c_s *) i2c;
+    if ((s->control & (1 << 14)) || !(s->control & (1 << 6)))
+        return 0;
+
+    if (s->status & (1 << 0)) {			/* RWM */
+        s->status |= 1 << 6;			/* set ITE */
+    }
+    pxa2xx_i2c_update(s);
+
+    return s->data;
+}
+
+static int pxa2xx_i2c_tx(i2c_slave *i2c, uint8_t data)
+{
+    struct pxa2xx_i2c_s *s = (struct pxa2xx_i2c_s *) i2c;
+    if ((s->control & (1 << 14)) || !(s->control & (1 << 6)))
+        return 1;
+
+    if (!(s->status & (1 << 0))) {		/* RWM */
+        s->status |= 1 << 7;			/* set IRF */
+        s->data = data;
+    }
+    pxa2xx_i2c_update(s);
+
+    return 1;
+}
+
+static uint32_t pxa2xx_i2c_read(void *opaque, target_phys_addr_t addr)
+{
+    struct pxa2xx_i2c_s *s = (struct pxa2xx_i2c_s *) opaque;
+    addr -= s->base;
+
+    switch (addr) {
+    case ICR:
+        return s->control;
+    case ISR:
+        return s->status | (i2c_bus_busy(s->bus) << 2);
+    case ISAR:
+        return s->slave.address;
+    case IDBR:
+        return s->data;
+    case IBMR:
+        if (s->status & (1 << 2))
+            s->ibmr ^= 3;	/* Fake SCL and SDA pin changes */
+        else
+            s->ibmr = 0;
+        return s->ibmr;
+    default:
+        printf("%s: Bad register " REG_FMT "\n", __FUNCTION__, addr);
+        break;
+    }
+    return 0;
+}
+
+static void pxa2xx_i2c_write(void *opaque, target_phys_addr_t addr,
+                uint32_t value)
+{
+    struct pxa2xx_i2c_s *s = (struct pxa2xx_i2c_s *) opaque;
+    int ack;
+    addr -= s->base;
+
+    switch (addr) {
+    case ICR:
+        s->control = value & 0xfff7;
+        if ((value & (1 << 3)) && (value & (1 << 6))) {	/* TB and IUE */
+            /* TODO: slave mode */
+            if (value & (1 << 0)) {			/* START condition */
+                if (s->data & 1)
+                    s->status |= 1 << 0;		/* set RWM */
+                else
+                    s->status &= ~(1 << 0);		/* clear RWM */
+                ack = !i2c_start_transfer(s->bus, s->data >> 1, s->data & 1);
+            } else {
+                if (s->status & (1 << 0)) {		/* RWM */
+                    s->data = i2c_recv(s->bus);
+                    if (value & (1 << 2))		/* ACKNAK */
+                        i2c_nack(s->bus);
+                    ack = 1;
+                } else
+                    ack = !i2c_send(s->bus, s->data);
+            }
+
+            if (value & (1 << 1))			/* STOP condition */
+                i2c_end_transfer(s->bus);
+
+            if (ack) {
+                if (value & (1 << 0))			/* START condition */
+                    s->status |= 1 << 6;		/* set ITE */
+                else
+                    if (s->status & (1 << 0))		/* RWM */
+                        s->status |= 1 << 7;		/* set IRF */
+                    else
+                        s->status |= 1 << 6;		/* set ITE */
+                s->status &= ~(1 << 1);			/* clear ACKNAK */
+            } else {
+                s->status |= 1 << 6;			/* set ITE */
+                s->status |= 1 << 10;			/* set BED */
+                s->status |= 1 << 1;			/* set ACKNAK */
+            }
+        }
+        if (!(value & (1 << 3)) && (value & (1 << 6)))	/* !TB and IUE */
+            if (value & (1 << 4))			/* MA */
+                i2c_end_transfer(s->bus);
+        pxa2xx_i2c_update(s);
+        break;
+
+    case ISR:
+        s->status &= ~(value & 0x07f0);
+        pxa2xx_i2c_update(s);
+        break;
+
+    case ISAR:
+        i2c_set_slave_address(&s->slave, value & 0x7f);
+        break;
+
+    case IDBR:
+        s->data = value & 0xff;
+        break;
+
+    default:
+        printf("%s: Bad register " REG_FMT "\n", __FUNCTION__, addr);
+    }
+}
+
+static CPUReadMemoryFunc *pxa2xx_i2c_readfn[] = {
+    pxa2xx_i2c_read,
+    pxa2xx_i2c_read,
+    pxa2xx_i2c_read,
 };
+
+static CPUWriteMemoryFunc *pxa2xx_i2c_writefn[] = {
+    pxa2xx_i2c_write,
+    pxa2xx_i2c_write,
+    pxa2xx_i2c_write,
+};
+
+static void pxa2xx_i2c_save(QEMUFile *f, void *opaque)
+{
+    struct pxa2xx_i2c_s *s = (struct pxa2xx_i2c_s *) opaque;
+
+    qemu_put_be16s(f, &s->control);
+    qemu_put_be16s(f, &s->status);
+    qemu_put_8s(f, &s->ibmr);
+    qemu_put_8s(f, &s->data);
+
+    i2c_bus_save(f, s->bus);
+    i2c_slave_save(f, &s->slave);
+}
+
+static int pxa2xx_i2c_load(QEMUFile *f, void *opaque, int version_id)
+{
+    struct pxa2xx_i2c_s *s = (struct pxa2xx_i2c_s *) opaque;
+
+    qemu_get_be16s(f, &s->control);
+    qemu_get_be16s(f, &s->status);
+    qemu_get_8s(f, &s->ibmr);
+    qemu_get_8s(f, &s->data);
+
+    i2c_bus_load(f, s->bus);
+    i2c_slave_load(f, &s->slave);
+    return 0;
+}
+
+struct pxa2xx_i2c_s *pxa2xx_i2c_init(target_phys_addr_t base,
+                qemu_irq irq, uint32_t page_size)
+{
+    int iomemtype;
+    struct pxa2xx_i2c_s *s = (struct pxa2xx_i2c_s *)
+            i2c_slave_init(i2c_init_bus(), 0, sizeof(struct pxa2xx_i2c_s));
+
+    s->base = base;
+    s->irq = irq;
+    s->slave.event = pxa2xx_i2c_event;
+    s->slave.recv = pxa2xx_i2c_rx;
+    s->slave.send = pxa2xx_i2c_tx;
+    s->bus = i2c_init_bus();
+
+    iomemtype = cpu_register_io_memory(0, pxa2xx_i2c_readfn,
+                    pxa2xx_i2c_writefn, s);
+    cpu_register_physical_memory(s->base & ~page_size, page_size, iomemtype);
+
+    register_savevm("pxa2xx_i2c", base, 0,
+                    pxa2xx_i2c_save, pxa2xx_i2c_load, s);
+
+    return s;
+}
+
+i2c_bus *pxa2xx_i2c_bus(struct pxa2xx_i2c_s *s)
+{
+    return s->bus;
+}
 
 /* PXA Inter-IC Sound Controller */
 static void pxa2xx_i2s_reset(struct pxa2xx_i2s_s *i2s)
@@ -1238,6 +1653,40 @@ static CPUWriteMemoryFunc *pxa2xx_i2s_writefn[] = {
     pxa2xx_i2s_write,
 };
 
+static void pxa2xx_i2s_save(QEMUFile *f, void *opaque)
+{
+    struct pxa2xx_i2s_s *s = (struct pxa2xx_i2s_s *) opaque;
+
+    qemu_put_be32s(f, &s->control[0]);
+    qemu_put_be32s(f, &s->control[1]);
+    qemu_put_be32s(f, &s->status);
+    qemu_put_be32s(f, &s->mask);
+    qemu_put_be32s(f, &s->clk);
+
+    qemu_put_be32(f, s->enable);
+    qemu_put_be32(f, s->rx_len);
+    qemu_put_be32(f, s->tx_len);
+    qemu_put_be32(f, s->fifo_len);
+}
+
+static int pxa2xx_i2s_load(QEMUFile *f, void *opaque, int version_id)
+{
+    struct pxa2xx_i2s_s *s = (struct pxa2xx_i2s_s *) opaque;
+
+    qemu_get_be32s(f, &s->control[0]);
+    qemu_get_be32s(f, &s->control[1]);
+    qemu_get_be32s(f, &s->status);
+    qemu_get_be32s(f, &s->mask);
+    qemu_get_be32s(f, &s->clk);
+
+    s->enable = qemu_get_be32(f);
+    s->rx_len = qemu_get_be32(f);
+    s->tx_len = qemu_get_be32(f);
+    s->fifo_len = qemu_get_be32(f);
+
+    return 0;
+}
+
 static void pxa2xx_i2s_data_req(void *opaque, int tx, int rx)
 {
     struct pxa2xx_i2s_s *s = (struct pxa2xx_i2s_s *) opaque;
@@ -1276,7 +1725,10 @@ static struct pxa2xx_i2s_s *pxa2xx_i2s_init(target_phys_addr_t base,
 
     iomemtype = cpu_register_io_memory(0, pxa2xx_i2s_readfn,
                     pxa2xx_i2s_writefn, s);
-    cpu_register_physical_memory(s->base & 0xfff00000, 0xfffff, iomemtype);
+    cpu_register_physical_memory(s->base & 0xfff00000, 0x100000, iomemtype);
+
+    register_savevm("pxa2xx_i2s", base, 0,
+                    pxa2xx_i2s_save, pxa2xx_i2s_load, s);
 
     return s;
 }
@@ -1480,6 +1932,45 @@ static void pxa2xx_fir_event(void *opaque, int event)
 {
 }
 
+static void pxa2xx_fir_save(QEMUFile *f, void *opaque)
+{
+    struct pxa2xx_fir_s *s = (struct pxa2xx_fir_s *) opaque;
+    int i;
+
+    qemu_put_be32(f, s->enable);
+
+    qemu_put_8s(f, &s->control[0]);
+    qemu_put_8s(f, &s->control[1]);
+    qemu_put_8s(f, &s->control[2]);
+    qemu_put_8s(f, &s->status[0]);
+    qemu_put_8s(f, &s->status[1]);
+
+    qemu_put_byte(f, s->rx_len);
+    for (i = 0; i < s->rx_len; i ++)
+        qemu_put_byte(f, s->rx_fifo[(s->rx_start + i) & 63]);
+}
+
+static int pxa2xx_fir_load(QEMUFile *f, void *opaque, int version_id)
+{
+    struct pxa2xx_fir_s *s = (struct pxa2xx_fir_s *) opaque;
+    int i;
+
+    s->enable = qemu_get_be32(f);
+
+    qemu_get_8s(f, &s->control[0]);
+    qemu_get_8s(f, &s->control[1]);
+    qemu_get_8s(f, &s->control[2]);
+    qemu_get_8s(f, &s->status[0]);
+    qemu_get_8s(f, &s->status[1]);
+
+    s->rx_len = qemu_get_byte(f);
+    s->rx_start = 0;
+    for (i = 0; i < s->rx_len; i ++)
+        s->rx_fifo[i] = qemu_get_byte(f);
+
+    return 0;
+}
+
 static struct pxa2xx_fir_s *pxa2xx_fir_init(target_phys_addr_t base,
                 qemu_irq irq, struct pxa2xx_dma_state_s *dma,
                 CharDriverState *chr)
@@ -1497,11 +1988,13 @@ static struct pxa2xx_fir_s *pxa2xx_fir_init(target_phys_addr_t base,
 
     iomemtype = cpu_register_io_memory(0, pxa2xx_fir_readfn,
                     pxa2xx_fir_writefn, s);
-    cpu_register_physical_memory(s->base, 0xfff, iomemtype);
+    cpu_register_physical_memory(s->base, 0x1000, iomemtype);
 
     if (chr)
         qemu_chr_add_handlers(chr, pxa2xx_fir_is_empty,
                         pxa2xx_fir_rx, pxa2xx_fir_event, s);
+
+    register_savevm("pxa2xx_fir", 0, 0, pxa2xx_fir_save, pxa2xx_fir_load, s);
 
     return s;
 }
@@ -1516,7 +2009,8 @@ void pxa2xx_reset(int line, int level, void *opaque)
 }
 
 /* Initialise a PXA270 integrated chip (ARM based core).  */
-struct pxa2xx_state_s *pxa270_init(DisplayState *ds, const char *revision)
+struct pxa2xx_state_s *pxa270_init(unsigned int sdram_size,
+                DisplayState *ds, const char *revision)
 {
     struct pxa2xx_state_s *s;
     struct pxa2xx_ssp_s *ssp;
@@ -1530,13 +2024,20 @@ struct pxa2xx_state_s *pxa270_init(DisplayState *ds, const char *revision)
 
     s->env = cpu_init();
     cpu_arm_set_model(s->env, revision ?: "pxa270");
+    register_savevm("cpu", 0, 0, cpu_save, cpu_load, s->env);
+
+    /* SDRAM & Internal Memory Storage */
+    cpu_register_physical_memory(PXA2XX_SDRAM_BASE,
+                    sdram_size, qemu_ram_alloc(sdram_size) | IO_MEM_RAM);
+    cpu_register_physical_memory(PXA2XX_INTERNAL_BASE,
+                    0x40000, qemu_ram_alloc(0x40000) | IO_MEM_RAM);
 
     s->pic = pxa2xx_pic_init(0x40d00000, s->env);
 
     s->dma = pxa27x_dma_init(0x40000000, s->pic[PXA2XX_PIC_DMA]);
 
     pxa27x_timer_init(0x40a00000, &s->pic[PXA2XX_PIC_OST_0],
-                    s->pic[PXA27X_PIC_OST_4_11], s->env);
+                    s->pic[PXA27X_PIC_OST_4_11]);
 
     s->gpio = pxa2xx_gpio_init(0x40e00000, s->env, s->pic, 121);
 
@@ -1560,7 +2061,8 @@ struct pxa2xx_state_s *pxa270_init(DisplayState *ds, const char *revision)
     s->clkcfg = 0x00000009;		/* Turbo mode active */
     iomemtype = cpu_register_io_memory(0, pxa2xx_cm_readfn,
                     pxa2xx_cm_writefn, s);
-    cpu_register_physical_memory(s->cm_base, 0xfff, iomemtype);
+    cpu_register_physical_memory(s->cm_base, 0x1000, iomemtype);
+    register_savevm("pxa2xx_cm", 0, 0, pxa2xx_cm_save, pxa2xx_cm_load, s);
 
     cpu_arm_set_cp_io(s->env, 14, pxa2xx_cp14_read, pxa2xx_cp14_write, s);
 
@@ -1570,7 +2072,14 @@ struct pxa2xx_state_s *pxa270_init(DisplayState *ds, const char *revision)
     s->mm_regs[MECR >> 2] = 0x00000001;	/* Two PC Card sockets */
     iomemtype = cpu_register_io_memory(0, pxa2xx_mm_readfn,
                     pxa2xx_mm_writefn, s);
-    cpu_register_physical_memory(s->mm_base, 0xfff, iomemtype);
+    cpu_register_physical_memory(s->mm_base, 0x1000, iomemtype);
+    register_savevm("pxa2xx_mm", 0, 0, pxa2xx_mm_save, pxa2xx_mm_load, s);
+
+    s->pm_base = 0x40f00000;
+    iomemtype = cpu_register_io_memory(0, pxa2xx_pm_readfn,
+                    pxa2xx_pm_writefn, s);
+    cpu_register_physical_memory(s->pm_base, 0x100, iomemtype);
+    register_savevm("pxa2xx_pm", 0, 0, pxa2xx_pm_save, pxa2xx_pm_load, s);
 
     for (i = 0; pxa27x_ssp[i].io_base; i ++);
     s->ssp = (struct pxa2xx_ssp_s **)
@@ -1584,7 +2093,9 @@ struct pxa2xx_state_s *pxa270_init(DisplayState *ds, const char *revision)
 
         iomemtype = cpu_register_io_memory(0, pxa2xx_ssp_readfn,
                         pxa2xx_ssp_writefn, &ssp[i]);
-        cpu_register_physical_memory(ssp[i].base, 0xfff, iomemtype);
+        cpu_register_physical_memory(ssp[i].base, 0x1000, iomemtype);
+        register_savevm("pxa2xx_ssp", i, 0,
+                        pxa2xx_ssp_save, pxa2xx_ssp_load, s);
     }
 
     if (usb_enabled) {
@@ -1597,13 +2108,12 @@ struct pxa2xx_state_s *pxa270_init(DisplayState *ds, const char *revision)
     s->rtc_base = 0x40900000;
     iomemtype = cpu_register_io_memory(0, pxa2xx_rtc_readfn,
                     pxa2xx_rtc_writefn, s);
-    cpu_register_physical_memory(s->rtc_base, 0xfff, iomemtype);
-    pxa2xx_rtc_reset(s);
+    cpu_register_physical_memory(s->rtc_base, 0x1000, iomemtype);
+    pxa2xx_rtc_init(s);
+    register_savevm("pxa2xx_rtc", 0, 0, pxa2xx_rtc_save, pxa2xx_rtc_load, s);
 
-    s->pm_base = 0x40f00000;
-    iomemtype = cpu_register_io_memory(0, pxa2xx_pm_readfn,
-                    pxa2xx_pm_writefn, s);
-    cpu_register_physical_memory(s->pm_base, 0xfff, iomemtype);
+    s->i2c[0] = pxa2xx_i2c_init(0x40301600, s->pic[PXA2XX_PIC_I2C], 0xffff);
+    s->i2c[1] = pxa2xx_i2c_init(0x40f00100, s->pic[PXA2XX_PIC_PWRI2C], 0xff);
 
     s->i2s = pxa2xx_i2s_init(0x40400000, s->pic[PXA2XX_PIC_I2S], s->dma);
 
@@ -1614,7 +2124,8 @@ struct pxa2xx_state_s *pxa270_init(DisplayState *ds, const char *revision)
 }
 
 /* Initialise a PXA255 integrated chip (ARM based core).  */
-struct pxa2xx_state_s *pxa255_init(DisplayState *ds)
+struct pxa2xx_state_s *pxa255_init(unsigned int sdram_size,
+                DisplayState *ds)
 {
     struct pxa2xx_state_s *s;
     struct pxa2xx_ssp_s *ssp;
@@ -1623,14 +2134,21 @@ struct pxa2xx_state_s *pxa255_init(DisplayState *ds)
 
     s->env = cpu_init();
     cpu_arm_set_model(s->env, "pxa255");
+    register_savevm("cpu", 0, 0, cpu_save, cpu_load, s->env);
+
+    /* SDRAM & Internal Memory Storage */
+    cpu_register_physical_memory(PXA2XX_SDRAM_BASE, sdram_size,
+                    qemu_ram_alloc(sdram_size) | IO_MEM_RAM);
+    cpu_register_physical_memory(PXA2XX_INTERNAL_BASE, PXA2XX_INTERNAL_SIZE,
+                    qemu_ram_alloc(PXA2XX_INTERNAL_SIZE) | IO_MEM_RAM);
 
     s->pic = pxa2xx_pic_init(0x40d00000, s->env);
 
     s->dma = pxa255_dma_init(0x40000000, s->pic[PXA2XX_PIC_DMA]);
 
-    pxa25x_timer_init(0x40a00000, &s->pic[PXA2XX_PIC_OST_0], s->env);
+    pxa25x_timer_init(0x40a00000, &s->pic[PXA2XX_PIC_OST_0]);
 
-    s->gpio = pxa2xx_gpio_init(0x40e00000, s->env, s->pic, 121);
+    s->gpio = pxa2xx_gpio_init(0x40e00000, s->env, s->pic, 85);
 
     s->mmc = pxa2xx_mmci_init(0x41100000, s->pic[PXA2XX_PIC_MMC], s->dma);
 
@@ -1652,7 +2170,8 @@ struct pxa2xx_state_s *pxa255_init(DisplayState *ds)
     s->clkcfg = 0x00000009;		/* Turbo mode active */
     iomemtype = cpu_register_io_memory(0, pxa2xx_cm_readfn,
                     pxa2xx_cm_writefn, s);
-    cpu_register_physical_memory(s->cm_base, 0xfff, iomemtype);
+    cpu_register_physical_memory(s->cm_base, 0x1000, iomemtype);
+    register_savevm("pxa2xx_cm", 0, 0, pxa2xx_cm_save, pxa2xx_cm_load, s);
 
     cpu_arm_set_cp_io(s->env, 14, pxa2xx_cp14_read, pxa2xx_cp14_write, s);
 
@@ -1662,7 +2181,14 @@ struct pxa2xx_state_s *pxa255_init(DisplayState *ds)
     s->mm_regs[MECR >> 2] = 0x00000001;	/* Two PC Card sockets */
     iomemtype = cpu_register_io_memory(0, pxa2xx_mm_readfn,
                     pxa2xx_mm_writefn, s);
-    cpu_register_physical_memory(s->mm_base, 0xfff, iomemtype);
+    cpu_register_physical_memory(s->mm_base, 0x1000, iomemtype);
+    register_savevm("pxa2xx_mm", 0, 0, pxa2xx_mm_save, pxa2xx_mm_load, s);
+
+    s->pm_base = 0x40f00000;
+    iomemtype = cpu_register_io_memory(0, pxa2xx_pm_readfn,
+                    pxa2xx_pm_writefn, s);
+    cpu_register_physical_memory(s->pm_base, 0x100, iomemtype);
+    register_savevm("pxa2xx_pm", 0, 0, pxa2xx_pm_save, pxa2xx_pm_load, s);
 
     for (i = 0; pxa255_ssp[i].io_base; i ++);
     s->ssp = (struct pxa2xx_ssp_s **)
@@ -1676,7 +2202,9 @@ struct pxa2xx_state_s *pxa255_init(DisplayState *ds)
 
         iomemtype = cpu_register_io_memory(0, pxa2xx_ssp_readfn,
                         pxa2xx_ssp_writefn, &ssp[i]);
-        cpu_register_physical_memory(ssp[i].base, 0xfff, iomemtype);
+        cpu_register_physical_memory(ssp[i].base, 0x1000, iomemtype);
+        register_savevm("pxa2xx_ssp", i, 0,
+                        pxa2xx_ssp_save, pxa2xx_ssp_load, s);
     }
 
     if (usb_enabled) {
@@ -1689,13 +2217,12 @@ struct pxa2xx_state_s *pxa255_init(DisplayState *ds)
     s->rtc_base = 0x40900000;
     iomemtype = cpu_register_io_memory(0, pxa2xx_rtc_readfn,
                     pxa2xx_rtc_writefn, s);
-    cpu_register_physical_memory(s->rtc_base, 0xfff, iomemtype);
-    pxa2xx_rtc_reset(s);
+    cpu_register_physical_memory(s->rtc_base, 0x1000, iomemtype);
+    pxa2xx_rtc_init(s);
+    register_savevm("pxa2xx_rtc", 0, 0, pxa2xx_rtc_save, pxa2xx_rtc_load, s);
 
-    s->pm_base = 0x40f00000;
-    iomemtype = cpu_register_io_memory(0, pxa2xx_pm_readfn,
-                    pxa2xx_pm_writefn, s);
-    cpu_register_physical_memory(s->pm_base, 0xfff, iomemtype);
+    s->i2c[0] = pxa2xx_i2c_init(0x40301600, s->pic[PXA2XX_PIC_I2C], 0xffff);
+    s->i2c[1] = pxa2xx_i2c_init(0x40f00100, s->pic[PXA2XX_PIC_PWRI2C], 0xff);
 
     s->i2s = pxa2xx_i2s_init(0x40400000, s->pic[PXA2XX_PIC_I2S], s->dma);
 

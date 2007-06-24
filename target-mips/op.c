@@ -3,6 +3,7 @@
  * 
  *  Copyright (c) 2004-2005 Jocelyn Mayer
  *  Copyright (c) 2006 Marius Groeger (FPU operations)
+ *  Copyright (c) 2007 Thiemo Seufer (64-bit FPU support)
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,27 +24,27 @@
 #include "exec.h"
 
 #ifndef CALL_FROM_TB0
-#define CALL_FROM_TB0(func) func();
+#define CALL_FROM_TB0(func) func()
 #endif
 #ifndef CALL_FROM_TB1
-#define CALL_FROM_TB1(func, arg0) func(arg0);
+#define CALL_FROM_TB1(func, arg0) func(arg0)
 #endif
 #ifndef CALL_FROM_TB1_CONST16
-#define CALL_FROM_TB1_CONST16(func, arg0) CALL_FROM_TB1(func, arg0);
+#define CALL_FROM_TB1_CONST16(func, arg0) CALL_FROM_TB1(func, arg0)
 #endif
 #ifndef CALL_FROM_TB2
-#define CALL_FROM_TB2(func, arg0, arg1) func(arg0, arg1);
+#define CALL_FROM_TB2(func, arg0, arg1) func(arg0, arg1)
 #endif
 #ifndef CALL_FROM_TB2_CONST16
 #define CALL_FROM_TB2_CONST16(func, arg0, arg1)     \
-CALL_FROM_TB2(func, arg0, arg1);
+        CALL_FROM_TB2(func, arg0, arg1)
 #endif
 #ifndef CALL_FROM_TB3
-#define CALL_FROM_TB3(func, arg0, arg1, arg2) func(arg0, arg1, arg2);
+#define CALL_FROM_TB3(func, arg0, arg1, arg2) func(arg0, arg1, arg2)
 #endif
 #ifndef CALL_FROM_TB4
 #define CALL_FROM_TB4(func, arg0, arg1, arg2, arg3) \
-        func(arg0, arg1, arg2, arg3);
+        func(arg0, arg1, arg2, arg3)
 #endif
 
 #define REG 1
@@ -144,134 +145,102 @@ CALL_FROM_TB2(func, arg0, arg1);
 #include "op_template.c"
 #undef TN
 
-#define SFREG 0
-#define DFREG 0
+#define FREG 0
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 1
+#undef FREG
+#define FREG 1
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 2
-#define DFREG 2
+#undef FREG
+#define FREG 2
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 3
+#undef FREG
+#define FREG 3
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 4
-#define DFREG 4
+#undef FREG
+#define FREG 4
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 5
+#undef FREG
+#define FREG 5
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 6
-#define DFREG 6
+#undef FREG
+#define FREG 6
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 7
+#undef FREG
+#define FREG 7
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 8
-#define DFREG 8
+#undef FREG
+#define FREG 8
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 9
+#undef FREG
+#define FREG 9
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 10
-#define DFREG 10
+#undef FREG
+#define FREG 10
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 11
+#undef FREG
+#define FREG 11
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 12
-#define DFREG 12
+#undef FREG
+#define FREG 12
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 13
+#undef FREG
+#define FREG 13
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 14
-#define DFREG 14
+#undef FREG
+#define FREG 14
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 15
+#undef FREG
+#define FREG 15
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 16
-#define DFREG 16
+#undef FREG
+#define FREG 16
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 17
+#undef FREG
+#define FREG 17
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 18
-#define DFREG 18
+#undef FREG
+#define FREG 18
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 19
+#undef FREG
+#define FREG 19
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 20
-#define DFREG 20
+#undef FREG
+#define FREG 20
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 21
+#undef FREG
+#define FREG 21
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 22
-#define DFREG 22
+#undef FREG
+#define FREG 22
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 23
+#undef FREG
+#define FREG 23
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 24
-#define DFREG 24
+#undef FREG
+#define FREG 24
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 25
+#undef FREG
+#define FREG 25
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 26
-#define DFREG 26
+#undef FREG
+#define FREG 26
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 27
+#undef FREG
+#define FREG 27
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 28
-#define DFREG 28
+#undef FREG
+#define FREG 28
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 29
+#undef FREG
+#define FREG 29
 #include "fop_template.c"
-#undef SFREG
-#define SFREG 30
-#define DFREG 30
+#undef FREG
+#define FREG 30
 #include "fop_template.c"
-#undef SFREG
-#undef DFREG
-#define SFREG 31
+#undef FREG
+#define FREG 31
 #include "fop_template.c"
-#undef SFREG
+#undef FREG
 
 #define FTN
 #include "fop_template.c"
@@ -320,6 +289,22 @@ void op_store_LO (void)
 #include "op_mem.c"
 #undef MEMSUFFIX
 #endif
+
+/* Addresses computation */
+void op_addr_add (void)
+{
+/* For compatibility with 32-bit code, data reference in user mode
+   with Status_UX = 0 should be casted to 32-bit and sign extended.
+   See the MIPS64 PRA manual, section 4.10. */
+#ifdef TARGET_MIPS64
+    if ((env->CP0_Status & (1 << CP0St_UM)) &&
+        !(env->CP0_Status & (1 << CP0St_UX)))
+        T0 = (int64_t)(int32_t)(T0 + T1);
+    else
+#endif
+        T0 += T1;
+    RETURN();
+}
 
 /* Arithmetic */
 void op_add (void)
@@ -890,13 +875,13 @@ void op_msubu (void)
 #ifdef TARGET_MIPS64
 void op_dmult (void)
 {
-    CALL_FROM_TB0(do_dmult);
+    CALL_FROM_TB4(muls64, &(env->HI), &(env->LO), T0, T1);
     RETURN();
 }
 
 void op_dmultu (void)
 {
-    CALL_FROM_TB0(do_dmultu);
+    CALL_FROM_TB4(mulu64, &(env->HI), &(env->LO), T0, T1);
     RETURN();
 }
 #endif
@@ -919,14 +904,14 @@ void op_movz (void)
 void op_movf (void)
 {
     if (!(env->fcr31 & PARAM1))
-        env->gpr[PARAM2] = env->gpr[PARAM3];
+        T0 = T1;
     RETURN();
 }
 
 void op_movt (void)
 {
     if (env->fcr31 & PARAM1)
-        env->gpr[PARAM2] = env->gpr[PARAM3];
+        T0 = T1;
     RETURN();
 }
 
@@ -944,18 +929,16 @@ void glue(op_, name) (void) \
 
 OP_COND(eq, T0 == T1);
 OP_COND(ne, T0 != T1);
-OP_COND(ge, (int32_t)T0 >= (int32_t)T1);
+OP_COND(ge, (target_long)T0 >= (target_long)T1);
 OP_COND(geu, T0 >= T1);
-OP_COND(lt, (int32_t)T0 < (int32_t)T1);
+OP_COND(lt, (target_long)T0 < (target_long)T1);
 OP_COND(ltu, T0 < T1);
-OP_COND(gez, (int32_t)T0 >= 0);
-OP_COND(gtz, (int32_t)T0 > 0);
-OP_COND(lez, (int32_t)T0 <= 0);
-OP_COND(ltz, (int32_t)T0 < 0);
+OP_COND(gez, (target_long)T0 >= 0);
+OP_COND(gtz, (target_long)T0 > 0);
+OP_COND(lez, (target_long)T0 <= 0);
+OP_COND(ltz, (target_long)T0 < 0);
 
 /* Branches */
-//#undef USE_DIRECT_JUMP
-
 void OPPROTO op_goto_tb0(void)
 {
     GOTO_TB(op_goto_tb0, PARAM1, 0);
@@ -992,6 +975,14 @@ void op_save_btarget (void)
     env->btarget = PARAM1;
     RETURN();
 }
+
+#ifdef TARGET_MIPS64
+void op_save_btarget64 (void)
+{
+    env->btarget = ((uint64_t)PARAM1 << 32) | (uint32_t)PARAM2;
+    RETURN();
+}
+#endif
 
 /* Conditional branch */
 void op_set_bcond (void)
@@ -1188,15 +1179,15 @@ void op_mfc0_lladdr (void)
     RETURN();
 }
 
-void op_mfc0_watchlo0 (void)
+void op_mfc0_watchlo (void)
 {
-    T0 = (int32_t)env->CP0_WatchLo;
+    T0 = (int32_t)env->CP0_WatchLo[PARAM1];
     RETURN();
 }
 
-void op_mfc0_watchhi0 (void)
+void op_mfc0_watchhi (void)
 {
-    T0 = env->CP0_WatchHi;
+    T0 = env->CP0_WatchHi[PARAM1];
     RETURN();
 }
 
@@ -1278,7 +1269,7 @@ void op_mtc0_entrylo0 (void)
 {
     /* Large physaddr not implemented */
     /* 1k pages not implemented */
-    env->CP0_EntryLo0 = (int32_t)T0 & 0x3FFFFFFF;
+    env->CP0_EntryLo0 = T0 & 0x3FFFFFFF;
     RETURN();
 }
 
@@ -1286,7 +1277,7 @@ void op_mtc0_entrylo1 (void)
 {
     /* Large physaddr not implemented */
     /* 1k pages not implemented */
-    env->CP0_EntryLo1 = (int32_t)T0 & 0x3FFFFFFF;
+    env->CP0_EntryLo1 = T0 & 0x3FFFFFFF;
     RETURN();
 }
 
@@ -1299,7 +1290,7 @@ void op_mtc0_context (void)
 void op_mtc0_pagemask (void)
 {
     /* 1k pages not implemented */
-    env->CP0_PageMask = T0 & 0x1FFFE000;
+    env->CP0_PageMask = T0 & (0x1FFFFFFF & (TARGET_PAGE_MASK << 1));
     RETURN();
 }
 
@@ -1335,8 +1326,10 @@ void op_mtc0_entryhi (void)
     target_ulong old, val;
 
     /* 1k pages not implemented */
-    /* Ignore MIPS64 TLB for now */
-    val = (target_ulong)(int32_t)T0 & ~(target_ulong)0x1F00;
+    val = T0 & ((TARGET_PAGE_MASK << 1) | 0xFF);
+#ifdef TARGET_MIPS64
+    val = T0 & 0xC00000FFFFFFFFFFULL;
+#endif
     old = env->CP0_EntryHi;
     env->CP0_EntryHi = val;
     /* If the ASID changes, flush qemu's TLB.  */
@@ -1354,17 +1347,31 @@ void op_mtc0_compare (void)
 void op_mtc0_status (void)
 {
     uint32_t val, old;
+    uint32_t mask = env->Status_rw_bitmask;
 
-    /* No 64bit FPU, no reverse endianness, no MDMX/DSP, no 64bit ops,
-       no 64bit addressing implemented. */
-    val = (int32_t)T0 & 0xF878FF17;
+    /* No reverse endianness, no MDMX/DSP implemented. */
+    val = T0 & mask;
     old = env->CP0_Status;
     if (!(val & (1 << CP0St_EXL)) &&
         !(val & (1 << CP0St_ERL)) &&
         !(env->hflags & MIPS_HFLAG_DM) &&
         (val & (1 << CP0St_UM)))
         env->hflags |= MIPS_HFLAG_UM;
-    env->CP0_Status = (env->CP0_Status & ~0xF878FF17) | val;
+#ifdef TARGET_MIPS64
+    if ((env->hflags & MIPS_HFLAG_UM) &&
+        !(val & (1 << CP0St_PX)) &&
+        !(val & (1 << CP0St_UX)))
+        env->hflags &= ~MIPS_HFLAG_64;
+#endif
+    if (val & (1 << CP0St_CU1))
+        env->hflags |= MIPS_HFLAG_FPU;
+    else
+        env->hflags &= ~MIPS_HFLAG_FPU;
+    if (val & (1 << CP0St_FR))
+        env->hflags |= MIPS_HFLAG_F64;
+    else
+        env->hflags &= ~MIPS_HFLAG_F64;
+    env->CP0_Status = (env->CP0_Status & ~mask) | val;
     if (loglevel & CPU_LOG_EXEC)
         CALL_FROM_TB2(do_mtc0_status_debug, old, val);
     CALL_FROM_TB1(cpu_mips_update_irq, env);
@@ -1412,7 +1419,7 @@ void op_mtc0_cause (void)
 
 void op_mtc0_epc (void)
 {
-    env->CP0_EPC = (int32_t)T0;
+    env->CP0_EPC = T0;
     RETURN();
 }
 
@@ -1426,12 +1433,7 @@ void op_mtc0_ebase (void)
 
 void op_mtc0_config0 (void)
 {
-#if defined(MIPS_USES_R4K_TLB)
-     /* Fixed mapping MMU not implemented */
-    env->CP0_Config0 = (env->CP0_Config0 & 0x8017FF88) | (T0 & 0x00000001);
-#else
-    env->CP0_Config0 = (env->CP0_Config0 & 0xFE17FF88) | (T0 & 0x00000001);
-#endif
+    env->CP0_Config0 = (env->CP0_Config0 & 0x81FFFFF8) | (T0 & 0x00000007);
     RETURN();
 }
 
@@ -1442,18 +1444,18 @@ void op_mtc0_config2 (void)
     RETURN();
 }
 
-void op_mtc0_watchlo0 (void)
+void op_mtc0_watchlo (void)
 {
     /* Watch exceptions for instructions, data loads, data stores
        not implemented. */
-    env->CP0_WatchLo = (int32_t)(T0 & ~0x7);
+    env->CP0_WatchLo[PARAM1] = (T0 & ~0x7);
     RETURN();
 }
 
-void op_mtc0_watchhi0 (void)
+void op_mtc0_watchhi (void)
 {
-    env->CP0_WatchHi = (T0 & 0x40FF0FF8);
-    env->CP0_WatchHi &= ~(env->CP0_WatchHi & T0 & 0x7);
+    env->CP0_WatchHi[PARAM1] = (T0 & 0x40FF0FF8);
+    env->CP0_WatchHi[PARAM1] &= ~(env->CP0_WatchHi[PARAM1] & T0 & 0x7);
     RETURN();
 }
 
@@ -1475,7 +1477,7 @@ void op_mtc0_debug (void)
 
 void op_mtc0_depc (void)
 {
-    env->CP0_DEPC = (int32_t)T0;
+    env->CP0_DEPC = T0;
     RETURN();
 }
 
@@ -1511,7 +1513,7 @@ void op_mtc0_datahi (void)
 
 void op_mtc0_errorepc (void)
 {
-    env->CP0_ErrorEPC = (int32_t)T0;
+    env->CP0_ErrorEPC = T0;
     RETURN();
 }
 
@@ -1522,6 +1524,12 @@ void op_mtc0_desave (void)
 }
 
 #ifdef TARGET_MIPS64
+void op_mtc0_xcontext (void)
+{
+    env->CP0_XContext = (env->CP0_XContext & 0x1ffffffffULL) | (T0 & ~0x1ffffffffULL);
+    RETURN();
+}
+
 void op_dmfc0_entrylo0 (void)
 {
     T0 = env->CP0_EntryLo0;
@@ -1564,9 +1572,9 @@ void op_dmfc0_lladdr (void)
     RETURN();
 }
 
-void op_dmfc0_watchlo0 (void)
+void op_dmfc0_watchlo (void)
 {
-    T0 = env->CP0_WatchLo;
+    T0 = env->CP0_WatchLo[PARAM1];
     RETURN();
 }
 
@@ -1587,62 +1595,9 @@ void op_dmfc0_errorepc (void)
     T0 = env->CP0_ErrorEPC;
     RETURN();
 }
-
-void op_dmtc0_entrylo0 (void)
-{
-    /* Large physaddr not implemented */
-    /* 1k pages not implemented */
-    env->CP0_EntryLo0 = T0 & 0x3FFFFFFF;
-    RETURN();
-}
-
-void op_dmtc0_entrylo1 (void)
-{
-    /* Large physaddr not implemented */
-    /* 1k pages not implemented */
-    env->CP0_EntryLo1 = T0 & 0x3FFFFFFF;
-    RETURN();
-}
-
-void op_dmtc0_context (void)
-{
-    env->CP0_Context = (env->CP0_Context & 0x007FFFFF) | (T0 & ~0x007FFFFF);
-    RETURN();
-}
-
-void op_dmtc0_epc (void)
-{
-    env->CP0_EPC = T0;
-    RETURN();
-}
-
-void op_dmtc0_watchlo0 (void)
-{
-    /* Watch exceptions for instructions, data loads, data stores
-       not implemented. */
-    env->CP0_WatchLo = T0 & ~0x7;
-    RETURN();
-}
-
-void op_dmtc0_xcontext (void)
-{
-    env->CP0_XContext = (env->CP0_XContext & 0xffffffff) | (T0 & ~0xffffffff);
-    RETURN();
-}
-
-void op_dmtc0_depc (void)
-{
-    env->CP0_DEPC = T0;
-    RETURN();
-}
-
-void op_dmtc0_errorepc (void)
-{
-    env->CP0_ErrorEPC = T0;
-    RETURN();
-}
 #endif /* TARGET_MIPS64 */
 
+/* CP1 functions */
 #if 0
 # define DEBUG_FPU_STATE() CALL_FROM_TB1(dump_fpu, env)
 #else
@@ -1658,59 +1613,32 @@ void op_cp0_enabled(void)
     RETURN();
 }
 
-void op_cp1_enabled(void)
-{
-    if (!(env->CP0_Status & (1 << CP0St_CU1))) {
-        CALL_FROM_TB2(do_raise_exception_err, EXCP_CpU, 1);
-    }
-    RETURN();
-}
-
-/* CP1 functions */
 void op_cfc1 (void)
 {
-    if (T1 == 0) {
-        T0 = env->fcr0;
-    }
-    else {
-        /* fetch fcr31, masking unused bits */
-        T0 = env->fcr31 & 0x0183FFFF;
+    switch (T1) {
+    case 0:
+        T0 = (int32_t)env->fcr0;
+        break;
+    case 25:
+        T0 = ((env->fcr31 >> 24) & 0xfe) | ((env->fcr31 >> 23) & 0x1);
+        break;
+    case 26:
+        T0 = env->fcr31 & 0x0003f07c;
+        break;
+    case 28:
+        T0 = (env->fcr31 & 0x00000f83) | ((env->fcr31 >> 22) & 0x4);
+        break;
+    default:
+        T0 = (int32_t)env->fcr31;
+        break;
     }
     DEBUG_FPU_STATE();
     RETURN();
 }
 
-/* convert MIPS rounding mode in FCR31 to IEEE library */
-unsigned int ieee_rm[] = { 
-    float_round_nearest_even,
-    float_round_to_zero,
-    float_round_up,
-    float_round_down
-};
-
-#define RESTORE_ROUNDING_MODE \
-    set_float_rounding_mode(ieee_rm[env->fcr31 & 3], &env->fp_status)
-
 void op_ctc1 (void)
 {
-    if (T1 == 0) {
-        /* XXX should this throw an exception?
-         * don't write to FCR0.
-         * env->fcr0 = T0; 
-         */
-    }
-    else {
-        /* store new fcr31, masking unused bits */  
-        env->fcr31 = T0 & 0x0183FFFF;
-
-        /* set rounding mode */
-        RESTORE_ROUNDING_MODE;
-
-#ifndef CONFIG_SOFTFLOAT
-        /* no floating point exception for native float */
-        SET_FP_ENABLE(env->fcr31, 0);
-#endif
-    }
+    CALL_FROM_TB0(do_ctc1);
     DEBUG_FPU_STATE();
     RETURN();
 }
@@ -1729,133 +1657,401 @@ void op_mtc1 (void)
     RETURN();
 }
 
+void op_dmfc1 (void)
+{
+    T0 = DT0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+
+void op_dmtc1 (void)
+{
+    DT0 = T0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+
+void op_mfhc1 (void)
+{
+    T0 = WTH0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+
+void op_mthc1 (void)
+{
+    WTH0 = T0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+
 /* Float support.
    Single precition routines have a "s" suffix, double precision a
-   "d" suffix.  */
+   "d" suffix, 32bit integer "w", 64bit integer "l", paired singe "ps",
+   paired single lowwer "pl", paired single upper "pu".  */
 
 #define FLOAT_OP(name, p) void OPPROTO op_float_##name##_##p(void)
 
 FLOAT_OP(cvtd, s)
 {
-    FDT2 = float32_to_float64(FST0, &env->fp_status);
+    CALL_FROM_TB0(do_float_cvtd_s);
     DEBUG_FPU_STATE();
     RETURN();
 }
 FLOAT_OP(cvtd, w)
 {
-    FDT2 = int32_to_float64(WT0, &env->fp_status);
+    CALL_FROM_TB0(do_float_cvtd_w);
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(cvtd, l)
+{
+    CALL_FROM_TB0(do_float_cvtd_l);
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(cvtl, d)
+{
+    CALL_FROM_TB0(do_float_cvtl_d);
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(cvtl, s)
+{
+    CALL_FROM_TB0(do_float_cvtl_s);
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(cvtps, s)
+{
+    WT2 = WT0;
+    WTH2 = WT1;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(cvtps, pw)
+{
+    CALL_FROM_TB0(do_float_cvtps_pw);
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(cvtpw, ps)
+{
+    CALL_FROM_TB0(do_float_cvtpw_ps);
     DEBUG_FPU_STATE();
     RETURN();
 }
 FLOAT_OP(cvts, d)
 {
-    FST2 = float64_to_float32(FDT0, &env->fp_status);
+    CALL_FROM_TB0(do_float_cvts_d);
     DEBUG_FPU_STATE();
     RETURN();
 }
 FLOAT_OP(cvts, w)
 {
-    FST2 = int32_to_float32(WT0, &env->fp_status);
+    CALL_FROM_TB0(do_float_cvts_w);
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(cvts, l)
+{
+    CALL_FROM_TB0(do_float_cvts_l);
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(cvts, pl)
+{
+    CALL_FROM_TB0(do_float_cvts_pl);
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(cvts, pu)
+{
+    CALL_FROM_TB0(do_float_cvts_pu);
     DEBUG_FPU_STATE();
     RETURN();
 }
 FLOAT_OP(cvtw, s)
 {
-    WT2 = float32_to_int32(FST0, &env->fp_status);
+    CALL_FROM_TB0(do_float_cvtw_s);
     DEBUG_FPU_STATE();
     RETURN();
 }
 FLOAT_OP(cvtw, d)
 {
-    WT2 = float64_to_int32(FDT0, &env->fp_status);
+    CALL_FROM_TB0(do_float_cvtw_d);
     DEBUG_FPU_STATE();
     RETURN();
 }
 
-FLOAT_OP(roundw, d)
+FLOAT_OP(pll, ps)
 {
-    set_float_rounding_mode(float_round_nearest_even, &env->fp_status);
-    WT2 = float64_round_to_int(FDT0, &env->fp_status);
-    RESTORE_ROUNDING_MODE;
-
+    DT2 = ((uint64_t)WT0 << 32) | WT1;
     DEBUG_FPU_STATE();
     RETURN();
 }
-FLOAT_OP(roundw, s)
+FLOAT_OP(plu, ps)
 {
-    set_float_rounding_mode(float_round_nearest_even, &env->fp_status);
-    WT2 = float32_round_to_int(FST0, &env->fp_status);
-    RESTORE_ROUNDING_MODE;
+    DT2 = ((uint64_t)WT0 << 32) | WTH1;
     DEBUG_FPU_STATE();
     RETURN();
 }
-
-FLOAT_OP(truncw, d)
+FLOAT_OP(pul, ps)
 {
-    WT2 = float64_to_int32_round_to_zero(FDT0, &env->fp_status);
+    DT2 = ((uint64_t)WTH0 << 32) | WT1;
     DEBUG_FPU_STATE();
     RETURN();
 }
-FLOAT_OP(truncw, s)
+FLOAT_OP(puu, ps)
 {
-    WT2 = float32_to_int32_round_to_zero(FST0, &env->fp_status);
+    DT2 = ((uint64_t)WTH0 << 32) | WTH1;
     DEBUG_FPU_STATE();
     RETURN();
 }
 
-FLOAT_OP(ceilw, d)
-{
-    set_float_rounding_mode(float_round_up, &env->fp_status);
-    WT2 = float64_round_to_int(FDT0, &env->fp_status);
-    RESTORE_ROUNDING_MODE;
+#define FLOAT_ROUNDOP(op, ttype, stype)                    \
+FLOAT_OP(op ## ttype, stype)                               \
+{                                                          \
+    CALL_FROM_TB0(do_float_ ## op ## ttype ## _ ## stype); \
+    DEBUG_FPU_STATE();                                     \
+    RETURN();                                              \
+}
 
+FLOAT_ROUNDOP(round, l, d)
+FLOAT_ROUNDOP(round, l, s)
+FLOAT_ROUNDOP(round, w, d)
+FLOAT_ROUNDOP(round, w, s)
+
+FLOAT_ROUNDOP(trunc, l, d)
+FLOAT_ROUNDOP(trunc, l, s)
+FLOAT_ROUNDOP(trunc, w, d)
+FLOAT_ROUNDOP(trunc, w, s)
+
+FLOAT_ROUNDOP(ceil, l, d)
+FLOAT_ROUNDOP(ceil, l, s)
+FLOAT_ROUNDOP(ceil, w, d)
+FLOAT_ROUNDOP(ceil, w, s)
+
+FLOAT_ROUNDOP(floor, l, d)
+FLOAT_ROUNDOP(floor, l, s)
+FLOAT_ROUNDOP(floor, w, d)
+FLOAT_ROUNDOP(floor, w, s)
+#undef FLOAR_ROUNDOP
+
+FLOAT_OP(movf, d)
+{
+    if (!(env->fcr31 & PARAM1))
+        DT2 = DT0;
     DEBUG_FPU_STATE();
     RETURN();
 }
-FLOAT_OP(ceilw, s)
+FLOAT_OP(movf, s)
 {
-    set_float_rounding_mode(float_round_up, &env->fp_status);
-    WT2 = float32_round_to_int(FST0, &env->fp_status);
-    RESTORE_ROUNDING_MODE;
+    if (!(env->fcr31 & PARAM1))
+        WT2 = WT0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(movf, ps)
+{
+    if (!(env->fcr31 & PARAM1)) {
+        WT2 = WT0;
+        WTH2 = WTH0;
+    }
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(movt, d)
+{
+    if (env->fcr31 & PARAM1)
+        DT2 = DT0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(movt, s)
+{
+    if (env->fcr31 & PARAM1)
+        WT2 = WT0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(movt, ps)
+{
+    if (env->fcr31 & PARAM1) {
+        WT2 = WT0;
+        WTH2 = WTH0;
+    }
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(movz, d)
+{
+    if (!T0)
+        DT2 = DT0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(movz, s)
+{
+    if (!T0)
+        WT2 = WT0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(movz, ps)
+{
+    if (!T0) {
+        WT2 = WT0;
+        WTH2 = WTH0;
+    }
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(movn, d)
+{
+    if (T0)
+        DT2 = DT0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(movn, s)
+{
+    if (T0)
+        WT2 = WT0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(movn, ps)
+{
+    if (T0) {
+        WT2 = WT0;
+        WTH2 = WTH0;
+    }
     DEBUG_FPU_STATE();
     RETURN();
 }
 
-FLOAT_OP(floorw, d)
-{
-    set_float_rounding_mode(float_round_down, &env->fp_status);
-    WT2 = float64_round_to_int(FDT0, &env->fp_status);
-    RESTORE_ROUNDING_MODE;
-
-    DEBUG_FPU_STATE();
-    RETURN();
-}
-FLOAT_OP(floorw, s)
-{
-    set_float_rounding_mode(float_round_down, &env->fp_status);
-    WT2 = float32_round_to_int(FST0, &env->fp_status);
-    RESTORE_ROUNDING_MODE;
-    DEBUG_FPU_STATE();
-    RETURN();
-}
-
-/* binary operations */
-#define FLOAT_BINOP(name) \
+/* operations calling helpers, for s, d and ps */
+#define FLOAT_HOP(name) \
 FLOAT_OP(name, d)         \
 {                         \
-    FDT2 = float64_ ## name (FDT0, FDT1, &env->fp_status);    \
+    CALL_FROM_TB0(do_float_ ## name ## _d);  \
     DEBUG_FPU_STATE();    \
+    RETURN();             \
 }                         \
 FLOAT_OP(name, s)         \
 {                         \
-    FST2 = float32_ ## name (FST0, FST1, &env->fp_status);    \
+    CALL_FROM_TB0(do_float_ ## name ## _s);  \
     DEBUG_FPU_STATE();    \
+    RETURN();             \
+}                         \
+FLOAT_OP(name, ps)        \
+{                         \
+    CALL_FROM_TB0(do_float_ ## name ## _ps); \
+    DEBUG_FPU_STATE();    \
+    RETURN();             \
 }
-FLOAT_BINOP(add)
-FLOAT_BINOP(sub)
-FLOAT_BINOP(mul)
-FLOAT_BINOP(div)
-#undef FLOAT_BINOP
+FLOAT_HOP(add)
+FLOAT_HOP(sub)
+FLOAT_HOP(mul)
+FLOAT_HOP(div)
+FLOAT_HOP(recip2)
+FLOAT_HOP(rsqrt2)
+FLOAT_HOP(rsqrt1)
+FLOAT_HOP(recip1)
+#undef FLOAT_HOP
+
+/* operations calling helpers, for s and d */
+#define FLOAT_HOP(name)   \
+FLOAT_OP(name, d)         \
+{                         \
+    CALL_FROM_TB0(do_float_ ## name ## _d);  \
+    DEBUG_FPU_STATE();    \
+    RETURN();             \
+}                         \
+FLOAT_OP(name, s)         \
+{                         \
+    CALL_FROM_TB0(do_float_ ## name ## _s);  \
+    DEBUG_FPU_STATE();    \
+    RETURN();             \
+}
+FLOAT_HOP(rsqrt)
+FLOAT_HOP(recip)
+#undef FLOAT_HOP
+
+/* operations calling helpers, for ps */
+#define FLOAT_HOP(name)   \
+FLOAT_OP(name, ps)        \
+{                         \
+    CALL_FROM_TB0(do_float_ ## name ## _ps); \
+    DEBUG_FPU_STATE();    \
+    RETURN();             \
+}
+FLOAT_HOP(addr)
+FLOAT_HOP(mulr)
+#undef FLOAT_HOP
+
+/* ternary operations */
+#define FLOAT_TERNOP(name1, name2) \
+FLOAT_OP(name1 ## name2, d)        \
+{                                  \
+    FDT0 = float64_ ## name1 (FDT0, FDT1, &env->fp_status);    \
+    FDT2 = float64_ ## name2 (FDT0, FDT2, &env->fp_status);    \
+    DEBUG_FPU_STATE();             \
+    RETURN();                      \
+}                                  \
+FLOAT_OP(name1 ## name2, s)        \
+{                                  \
+    FST0 = float32_ ## name1 (FST0, FST1, &env->fp_status);    \
+    FST2 = float32_ ## name2 (FST0, FST2, &env->fp_status);    \
+    DEBUG_FPU_STATE();             \
+    RETURN();                      \
+}                                  \
+FLOAT_OP(name1 ## name2, ps)       \
+{                                  \
+    FST0 = float32_ ## name1 (FST0, FST1, &env->fp_status);    \
+    FSTH0 = float32_ ## name1 (FSTH0, FSTH1, &env->fp_status); \
+    FST2 = float32_ ## name2 (FST0, FST2, &env->fp_status);    \
+    FSTH2 = float32_ ## name2 (FSTH0, FSTH2, &env->fp_status); \
+    DEBUG_FPU_STATE();             \
+    RETURN();                      \
+}
+FLOAT_TERNOP(mul, add)
+FLOAT_TERNOP(mul, sub)
+#undef FLOAT_TERNOP
+
+/* negated ternary operations */
+#define FLOAT_NTERNOP(name1, name2) \
+FLOAT_OP(n ## name1 ## name2, d)    \
+{                                   \
+    FDT0 = float64_ ## name1 (FDT0, FDT1, &env->fp_status);    \
+    FDT2 = float64_ ## name2 (FDT0, FDT2, &env->fp_status);    \
+    FDT2 ^= 1ULL << 63;             \
+    DEBUG_FPU_STATE();              \
+    RETURN();                       \
+}                                   \
+FLOAT_OP(n ## name1 ## name2, s)    \
+{                                   \
+    FST0 = float32_ ## name1 (FST0, FST1, &env->fp_status);    \
+    FST2 = float32_ ## name2 (FST0, FST2, &env->fp_status);    \
+    FST2 ^= 1 << 31;                \
+    DEBUG_FPU_STATE();              \
+    RETURN();                       \
+}                                   \
+FLOAT_OP(n ## name1 ## name2, ps)   \
+{                                   \
+    FST0 = float32_ ## name1 (FST0, FST1, &env->fp_status);    \
+    FSTH0 = float32_ ## name1 (FSTH0, FSTH1, &env->fp_status); \
+    FST2 = float32_ ## name2 (FST0, FST2, &env->fp_status);    \
+    FSTH2 = float32_ ## name2 (FSTH0, FSTH2, &env->fp_status); \
+    FST2 ^= 1 << 31;                \
+    FSTH2 ^= 1 << 31;               \
+    DEBUG_FPU_STATE();              \
+    RETURN();                       \
+}
+FLOAT_NTERNOP(mul, add)
+FLOAT_NTERNOP(mul, sub)
+#undef FLOAT_NTERNOP
 
 /* unary operations, modifying fp status  */
 #define FLOAT_UNOP(name)  \
@@ -1863,11 +2059,13 @@ FLOAT_OP(name, d)         \
 {                         \
     FDT2 = float64_ ## name(FDT0, &env->fp_status);   \
     DEBUG_FPU_STATE();    \
+    RETURN();                      \
 }                         \
 FLOAT_OP(name, s)         \
 {                         \
     FST2 = float32_ ## name(FST0, &env->fp_status);   \
     DEBUG_FPU_STATE();    \
+    RETURN();             \
 }
 FLOAT_UNOP(sqrt)
 #undef FLOAT_UNOP
@@ -1878,11 +2076,20 @@ FLOAT_OP(name, d)         \
 {                         \
     FDT2 = float64_ ## name(FDT0);   \
     DEBUG_FPU_STATE();    \
+    RETURN();             \
 }                         \
 FLOAT_OP(name, s)         \
 {                         \
     FST2 = float32_ ## name(FST0);   \
     DEBUG_FPU_STATE();    \
+    RETURN();             \
+}                         \
+FLOAT_OP(name, ps)        \
+{                         \
+    FST2 = float32_ ## name(FST0);   \
+    FSTH2 = float32_ ## name(FSTH0); \
+    DEBUG_FPU_STATE();    \
+    RETURN();             \
 }
 FLOAT_UNOP(abs)
 FLOAT_UNOP(chs)
@@ -1900,6 +2107,35 @@ FLOAT_OP(mov, s)
     DEBUG_FPU_STATE();
     RETURN();
 }
+FLOAT_OP(mov, ps)
+{
+    FST2 = FST0;
+    FSTH2 = FSTH0;
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+FLOAT_OP(alnv, ps)
+{
+    switch (T0 & 0x7) {
+    case 0:
+        FST2 = FST0;
+        FSTH2 = FSTH0;
+        break;
+    case 4:
+#ifdef TARGET_WORDS_BIGENDIAN
+        FSTH2 = FST0;
+        FST2 = FSTH1;
+#else
+        FSTH2 = FST1;
+        FST2 = FSTH0;
+#endif
+        break;
+    default: /* unpredictable */
+        break;
+    }
+    DEBUG_FPU_STATE();
+    RETURN();
+}
 
 #ifdef CONFIG_SOFTFLOAT
 #define clear_invalid() do {                                \
@@ -1913,131 +2149,110 @@ FLOAT_OP(mov, s)
 
 extern void dump_fpu_s(CPUState *env);
 
-#define FOP_COND(fmt, op, sig, cond)           \
-void op_cmp_ ## fmt ## _ ## op (void)          \
-{                                              \
-    if (cond)                                  \
-        SET_FP_COND(env->fcr31);               \
-    else                                       \
-        CLEAR_FP_COND(env->fcr31);             \
-    if (!sig)                                  \
-        clear_invalid();                       \
-    /*CALL_FROM_TB1(dump_fpu_s, env);*/ \
-    DEBUG_FPU_STATE();                         \
-    RETURN();                                  \
+#define CMP_OP(fmt, op)                                \
+void OPPROTO op_cmp ## _ ## fmt ## _ ## op(void)       \
+{                                                      \
+    CALL_FROM_TB1(do_cmp ## _ ## fmt ## _ ## op, PARAM1); \
+    DEBUG_FPU_STATE();                                 \
+    RETURN();                                          \
+}                                                      \
+void OPPROTO op_cmpabs ## _ ## fmt ## _ ## op(void)    \
+{                                                      \
+    CALL_FROM_TB1(do_cmpabs ## _ ## fmt ## _ ## op, PARAM1); \
+    DEBUG_FPU_STATE();                                 \
+    RETURN();                                          \
 }
+#define CMP_OPS(op)   \
+CMP_OP(d, op)         \
+CMP_OP(s, op)         \
+CMP_OP(ps, op)
 
-int float64_is_unordered(float64 a, float64 b STATUS_PARAM)
-{
-    if (float64_is_nan(a) || float64_is_nan(b)) {
-        float_raise(float_flag_invalid, status);
-        return 1;
-    }
-    else {
-        return 0;
-    }
-}
-
-FOP_COND(d, f,   0,                                                      0) 
-FOP_COND(d, un,  0, float64_is_unordered(FDT1, FDT0, &env->fp_status))
-FOP_COND(d, eq,  0,                                                      float64_eq(FDT0, FDT1, &env->fp_status))
-FOP_COND(d, ueq, 0, float64_is_unordered(FDT1, FDT0, &env->fp_status) || float64_eq(FDT0, FDT1, &env->fp_status))
-FOP_COND(d, olt, 0,                                                      float64_lt(FDT0, FDT1, &env->fp_status))
-FOP_COND(d, ult, 0, float64_is_unordered(FDT1, FDT0, &env->fp_status) || float64_lt(FDT0, FDT1, &env->fp_status))
-FOP_COND(d, ole, 0,                                                      float64_le(FDT0, FDT1, &env->fp_status))
-FOP_COND(d, ule, 0, float64_is_unordered(FDT1, FDT0, &env->fp_status) || float64_le(FDT0, FDT1, &env->fp_status))
-/* NOTE: the comma operator will make "cond" to eval to false,
- * but float*_is_unordered() is still called
- */
-FOP_COND(d, sf,  1,                                                      (float64_is_unordered(FDT0, FDT1, &env->fp_status), 0))
-FOP_COND(d, ngle,1, float64_is_unordered(FDT1, FDT0, &env->fp_status))
-FOP_COND(d, seq, 1,                                                      float64_eq(FDT0, FDT1, &env->fp_status))
-FOP_COND(d, ngl, 1, float64_is_unordered(FDT1, FDT0, &env->fp_status) || float64_eq(FDT0, FDT1, &env->fp_status))
-FOP_COND(d, lt,  1,                                                      float64_lt(FDT0, FDT1, &env->fp_status))
-FOP_COND(d, nge, 1, float64_is_unordered(FDT1, FDT0, &env->fp_status) || float64_lt(FDT0, FDT1, &env->fp_status))
-FOP_COND(d, le,  1,                                                      float64_le(FDT0, FDT1, &env->fp_status))
-FOP_COND(d, ngt, 1, float64_is_unordered(FDT1, FDT0, &env->fp_status) || float64_le(FDT0, FDT1, &env->fp_status))
-
-flag float32_is_unordered(float32 a, float32 b STATUS_PARAM)
-{
-    extern flag float32_is_nan( float32 a );
-    if (float32_is_nan(a) || float32_is_nan(b)) {
-        float_raise(float_flag_invalid, status);
-        return 1;
-    }
-    else {
-        return 0;
-    }
-}
-
-/* NOTE: the comma operator will make "cond" to eval to false,
- * but float*_is_unordered() is still called
- */
-FOP_COND(s, f,   0,                                                      0) 
-FOP_COND(s, un,  0, float32_is_unordered(FST1, FST0, &env->fp_status))
-FOP_COND(s, eq,  0,                                                      float32_eq(FST0, FST1, &env->fp_status))
-FOP_COND(s, ueq, 0, float32_is_unordered(FST1, FST0, &env->fp_status) || float32_eq(FST0, FST1, &env->fp_status))
-FOP_COND(s, olt, 0,                                                      float32_lt(FST0, FST1, &env->fp_status))
-FOP_COND(s, ult, 0, float32_is_unordered(FST1, FST0, &env->fp_status) || float32_lt(FST0, FST1, &env->fp_status))
-FOP_COND(s, ole, 0,                                                      float32_le(FST0, FST1, &env->fp_status))
-FOP_COND(s, ule, 0, float32_is_unordered(FST1, FST0, &env->fp_status) || float32_le(FST0, FST1, &env->fp_status))
-/* NOTE: the comma operator will make "cond" to eval to false,
- * but float*_is_unordered() is still called
- */
-FOP_COND(s, sf,  1,                                                      (float32_is_unordered(FST0, FST1, &env->fp_status), 0))
-FOP_COND(s, ngle,1, float32_is_unordered(FST1, FST0, &env->fp_status))
-FOP_COND(s, seq, 1,                                                      float32_eq(FST0, FST1, &env->fp_status))
-FOP_COND(s, ngl, 1, float32_is_unordered(FST1, FST0, &env->fp_status) || float32_eq(FST0, FST1, &env->fp_status))
-FOP_COND(s, lt,  1,                                                      float32_lt(FST0, FST1, &env->fp_status))
-FOP_COND(s, nge, 1, float32_is_unordered(FST1, FST0, &env->fp_status) || float32_lt(FST0, FST1, &env->fp_status))
-FOP_COND(s, le,  1,                                                      float32_le(FST0, FST1, &env->fp_status))
-FOP_COND(s, ngt, 1, float32_is_unordered(FST1, FST0, &env->fp_status) || float32_le(FST0, FST1, &env->fp_status))
+CMP_OPS(f)
+CMP_OPS(un)
+CMP_OPS(eq)
+CMP_OPS(ueq)
+CMP_OPS(olt)
+CMP_OPS(ult)
+CMP_OPS(ole)
+CMP_OPS(ule)
+CMP_OPS(sf)
+CMP_OPS(ngle)
+CMP_OPS(seq)
+CMP_OPS(ngl)
+CMP_OPS(lt)
+CMP_OPS(nge)
+CMP_OPS(le)
+CMP_OPS(ngt)
+#undef CMP_OPS
+#undef CMP_OP
 
 void op_bc1f (void)
 {
-    T0 = ! IS_FP_COND_SET(env->fcr31);
+    T0 = !!(~GET_FP_COND(env) & (0x1 << PARAM1));
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+void op_bc1any2f (void)
+{
+    T0 = !!(~GET_FP_COND(env) & (0x3 << PARAM1));
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+void op_bc1any4f (void)
+{
+    T0 = !!(~GET_FP_COND(env) & (0xf << PARAM1));
     DEBUG_FPU_STATE();
     RETURN();
 }
 
 void op_bc1t (void)
 {
-    T0 = IS_FP_COND_SET(env->fcr31);
+    T0 = !!(GET_FP_COND(env) & (0x1 << PARAM1));
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+void op_bc1any2t (void)
+{
+    T0 = !!(GET_FP_COND(env) & (0x3 << PARAM1));
+    DEBUG_FPU_STATE();
+    RETURN();
+}
+void op_bc1any4t (void)
+{
+    T0 = !!(GET_FP_COND(env) & (0xf << PARAM1));
     DEBUG_FPU_STATE();
     RETURN();
 }
 
-#if defined(MIPS_USES_R4K_TLB)
 void op_tlbwi (void)
 {
-    CALL_FROM_TB0(do_tlbwi);
+    CALL_FROM_TB0(env->do_tlbwi);
     RETURN();
 }
 
 void op_tlbwr (void)
 {
-    CALL_FROM_TB0(do_tlbwr);
+    CALL_FROM_TB0(env->do_tlbwr);
     RETURN();
 }
 
 void op_tlbp (void)
 {
-    CALL_FROM_TB0(do_tlbp);
+    CALL_FROM_TB0(env->do_tlbp);
     RETURN();
 }
 
 void op_tlbr (void)
 {
-    CALL_FROM_TB0(do_tlbr);
+    CALL_FROM_TB0(env->do_tlbr);
     RETURN();
 }
-#endif
 
 /* Specials */
 #if defined (CONFIG_USER_ONLY)
 void op_tls_value (void)
 {
-  T0 = env->tls_value;
+    T0 = env->tls_value;
 }
 #endif
 
@@ -2101,6 +2316,12 @@ void op_eret (void)
         !(env->hflags & MIPS_HFLAG_DM) &&
         (env->CP0_Status & (1 << CP0St_UM)))
         env->hflags |= MIPS_HFLAG_UM;
+#ifdef TARGET_MIPS64
+    if ((env->hflags & MIPS_HFLAG_UM) &&
+        !(env->CP0_Status & (1 << CP0St_PX)) &&
+        !(env->CP0_Status & (1 << CP0St_UX)))
+        env->hflags &= ~MIPS_HFLAG_64;
+#endif
     if (loglevel & CPU_LOG_EXEC)
         CALL_FROM_TB0(debug_post_eret);
     env->CP0_LLAddr = 1;
@@ -2118,6 +2339,12 @@ void op_deret (void)
         !(env->hflags & MIPS_HFLAG_DM) &&
         (env->CP0_Status & (1 << CP0St_UM)))
         env->hflags |= MIPS_HFLAG_UM;
+#ifdef TARGET_MIPS64
+    if ((env->hflags & MIPS_HFLAG_UM) &&
+        !(env->CP0_Status & (1 << CP0St_PX)) &&
+        !(env->CP0_Status & (1 << CP0St_UX)))
+        env->hflags &= ~MIPS_HFLAG_64;
+#endif
     if (loglevel & CPU_LOG_EXEC)
         CALL_FROM_TB0(debug_post_eret);
     env->CP0_LLAddr = 1;
@@ -2179,6 +2406,14 @@ void op_save_pc (void)
     env->PC = PARAM1;
     RETURN();
 }
+
+#ifdef TARGET_MIPS64
+void op_save_pc64 (void)
+{
+    env->PC = ((uint64_t)PARAM1 << 32) | (uint32_t)PARAM2;
+    RETURN();
+}
+#endif
 
 void op_interrupt_restart (void)
 {

@@ -78,6 +78,9 @@ void optimize_flags_init(void);
 extern FILE *logfile;
 extern int loglevel;
 
+void muls64(int64_t *phigh, int64_t *plow, int64_t a, int64_t b);
+void mulu64(uint64_t *phigh, uint64_t *plow, uint64_t a, uint64_t b);
+
 int gen_intermediate_code(CPUState *env, struct TranslationBlock *tb);
 int gen_intermediate_code_pc(CPUState *env, struct TranslationBlock *tb);
 void dump_ops(const uint16_t *opc_buf, const uint32_t *opparam_buf);
@@ -357,7 +360,7 @@ extern CPUWriteMemoryFunc *io_mem_write[IO_MEM_NB_ENTRIES][4];
 extern CPUReadMemoryFunc *io_mem_read[IO_MEM_NB_ENTRIES][4];
 extern void *io_mem_opaque[IO_MEM_NB_ENTRIES];
 
-#ifdef __powerpc__
+#if defined(__powerpc__)
 static inline int testandset (int *p)
 {
     int ret;
@@ -373,9 +376,7 @@ static inline int testandset (int *p)
                           : "cr0", "memory");
     return ret;
 }
-#endif
-
-#ifdef __i386__
+#elif defined(__i386__)
 static inline int testandset (int *p)
 {
     long int readval = 0;
@@ -386,9 +387,7 @@ static inline int testandset (int *p)
                           : "cc");
     return readval;
 }
-#endif
-
-#ifdef __x86_64__
+#elif defined(__x86_64__)
 static inline int testandset (int *p)
 {
     long int readval = 0;
@@ -399,9 +398,7 @@ static inline int testandset (int *p)
                           : "cc");
     return readval;
 }
-#endif
-
-#ifdef __s390__
+#elif defined(__s390__)
 static inline int testandset (int *p)
 {
     int ret;
@@ -413,9 +410,7 @@ static inline int testandset (int *p)
 			  : "cc", "memory" );
     return ret;
 }
-#endif
-
-#ifdef __alpha__
+#elif defined(__alpha__)
 static inline int testandset (int *p)
 {
     int ret;
@@ -432,9 +427,7 @@ static inline int testandset (int *p)
 			  : "m" (*p));
     return ret;
 }
-#endif
-
-#ifdef __sparc__
+#elif defined(__sparc__)
 static inline int testandset (int *p)
 {
 	int ret;
@@ -446,9 +439,7 @@ static inline int testandset (int *p)
 
 	return (ret ? 1 : 0);
 }
-#endif
-
-#ifdef __arm__
+#elif defined(__arm__)
 static inline int testandset (int *spinlock)
 {
     register unsigned int ret;
@@ -458,9 +449,7 @@ static inline int testandset (int *spinlock)
     
     return ret;
 }
-#endif
-
-#ifdef __mc68000
+#elif defined(__mc68000)
 static inline int testandset (int *p)
 {
     char ret;
@@ -470,15 +459,36 @@ static inline int testandset (int *p)
                          : "cc","memory");
     return ret;
 }
-#endif
+#elif defined(__ia64)
 
-#ifdef __ia64
 #include <ia64intrin.h>
 
 static inline int testandset (int *p)
 {
     return __sync_lock_test_and_set (p, 1);
 }
+#elif defined(__mips__)
+static inline int testandset (int *p)
+{
+    int ret;
+
+    __asm__ __volatile__ (
+	"	.set push		\n"
+	"	.set noat		\n"
+	"	.set mips2		\n"
+	"1:	li	$1, 1		\n"
+	"	ll	%0, %1		\n"
+	"	sc	$1, %1		\n"
+	"	beqz	$1, 1b		\n"
+	"	.set pop		"
+	: "=r" (ret), "+R" (*p)
+	:
+	: "memory");
+
+    return ret;
+}
+#else
+#error unimplemented CPU support
 #endif
 
 typedef int spinlock_t;
@@ -574,6 +584,8 @@ static inline target_ulong get_phys_addr_code(CPUState *env, target_ulong addr)
     is_user = ((env->sr & SR_MD) == 0);
 #elif defined (TARGET_ALPHA)
     is_user = ((env->ps >> 3) & 3);
+#elif defined (TARGET_M68K)
+    is_user = ((env->sr & SR_S) == 0);
 #else
 #error unimplemented CPU
 #endif
@@ -583,7 +595,11 @@ static inline target_ulong get_phys_addr_code(CPUState *env, target_ulong addr)
     }
     pd = env->tlb_table[is_user][index].addr_code & ~TARGET_PAGE_MASK;
     if (pd > IO_MEM_ROM && !(pd & IO_MEM_ROMD)) {
+#ifdef TARGET_SPARC
+        do_unassigned_access(addr, 0, 1, 0);
+#else
         cpu_abort(env, "Trying to execute code outside RAM or ROM at 0x" TARGET_FMT_lx "\n", addr);
+#endif
     }
     return addr + env->tlb_table[is_user][index].addend - (unsigned long)phys_ram_base;
 }

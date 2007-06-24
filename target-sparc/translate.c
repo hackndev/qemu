@@ -1202,7 +1202,7 @@ static void disas_sparc_insn(DisasContext * dc)
                     gen_movl_T0_reg(rd);
                     break;
 		case 0x18: /* System tick */
-                    gen_op_rdtick(); // XXX
+                    gen_op_rdstick();
                     gen_movl_T0_reg(rd);
                     break;
 		case 0x19: /* System tick compare */
@@ -1991,21 +1991,23 @@ static void disas_sparc_insn(DisasContext * dc)
 				if (!supervisor(dc))
 				    goto illegal_insn;
 #endif
-				gen_op_movtl_env_T0(offsetof(CPUSPARCState, tick_cmpr));
+                                gen_op_movtl_env_T0(offsetof(CPUSPARCState, tick_cmpr));
+                                gen_op_wrtick_cmpr();
 				break;
 			    case 0x18: /* System tick */
 #if !defined(CONFIG_USER_ONLY)
 				if (!supervisor(dc))
 				    goto illegal_insn;
 #endif
-				gen_op_movtl_env_T0(offsetof(CPUSPARCState, stick_cmpr));
+                                gen_op_wrstick();
 				break;
 			    case 0x19: /* System tick compare */
 #if !defined(CONFIG_USER_ONLY)
 				if (!supervisor(dc))
 				    goto illegal_insn;
 #endif
-				gen_op_movtl_env_T0(offsetof(CPUSPARCState, stick_cmpr));
+                                gen_op_movtl_env_T0(offsetof(CPUSPARCState, stick_cmpr));
+                                gen_op_wrstick_cmpr();
 				break;
 
 			    case 0x10: /* Performance Control */
@@ -2155,7 +2157,8 @@ static void disas_sparc_insn(DisasContext * dc)
                                 gen_op_movl_env_T0(offsetof(CPUSPARCState, htba));
                                 break;
                             case 31: // hstick_cmpr
-                                gen_op_movl_env_T0(offsetof(CPUSPARCState, hstick_cmpr));
+                                gen_op_movtl_env_T0(offsetof(CPUSPARCState, hstick_cmpr));
+                                gen_op_wrhstick_cmpr();
                                 break;
                             case 6: // hver readonly
                             default:
@@ -2776,6 +2779,7 @@ static void disas_sparc_insn(DisasContext * dc)
 	{
 	    unsigned int xop = GET_FIELD(insn, 7, 12);
 	    rs1 = GET_FIELD(insn, 13, 17);
+            save_state(dc);
 	    gen_movl_reg_T0(rs1);
 	    if (IS_IMM) {	/* immediate */
 		rs2 = GET_FIELDs(insn, 19, 31);
@@ -2798,9 +2802,9 @@ static void disas_sparc_insn(DisasContext * dc)
 		}
 #endif
 	    }
-	    if (xop < 4 || (xop > 7 && xop < 0x14 && xop != 0x0e) || \
-		    (xop > 0x17 && xop <= 0x1d ) || \
-		    (xop > 0x2c && xop <= 0x33) || xop == 0x1f) {
+            if (xop < 4 || (xop > 7 && xop < 0x14 && xop != 0x0e) ||
+                (xop > 0x17 && xop <= 0x1d ) ||
+                (xop > 0x2c && xop <= 0x33) || xop == 0x1f || xop == 0x3d) {
 		switch (xop) {
 		case 0x0:	/* load word */
 		    gen_op_ldst(ld);
@@ -3493,6 +3497,8 @@ target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr)
     if (get_physical_address(env, &phys_addr, &prot, &access_index, addr, 2, 0) != 0)
         if (get_physical_address(env, &phys_addr, &prot, &access_index, addr, 0, 0) != 0)
             return -1;
+    if (cpu_get_physical_page_desc(phys_addr) == IO_MEM_UNASSIGNED)
+        return -1;
     return phys_addr;
 }
 #endif

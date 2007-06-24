@@ -22,13 +22,17 @@
  * THE SOFTWARE.
  */
 #include "vl.h"
+#include "pixel_ops.h"
 
 #define MAXX 1024
 #define MAXY 768
 #define TCX_DAC_NREGS 16
+#define TCX_THC_NREGS_8  0x081c
+#define TCX_THC_NREGS_24 0x1000
+#define TCX_TEC_NREGS    0x1000
 
 typedef struct TCXState {
-    uint32_t addr;
+    target_phys_addr_t addr;
     DisplayState *ds;
     uint8_t *vram;
     uint32_t *vram24, *cplane;
@@ -41,27 +45,8 @@ typedef struct TCXState {
 
 static void tcx_screen_dump(void *opaque, const char *filename);
 static void tcx24_screen_dump(void *opaque, const char *filename);
-
-/* XXX: unify with vga draw line functions */
-static inline unsigned int rgb_to_pixel8(unsigned int r, unsigned int g, unsigned b)
-{
-    return ((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6);
-}
-
-static inline unsigned int rgb_to_pixel15(unsigned int r, unsigned int g, unsigned b)
-{
-    return ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-}
-
-static inline unsigned int rgb_to_pixel16(unsigned int r, unsigned int g, unsigned b)
-{
-    return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
-}
-
-static inline unsigned int rgb_to_pixel32(unsigned int r, unsigned int g, unsigned b)
-{
-    return (r << 16) | (g << 8) | b;
-}
+static void tcx_invalidate_display(void *opaque);
+static void tcx24_invalidate_display(void *opaque);
 
 static void update_palette_entries(TCXState *s, int start, int end)
 {
@@ -73,16 +58,29 @@ static void update_palette_entries(TCXState *s, int start, int end)
             s->palette[i] = rgb_to_pixel8(s->r[i], s->g[i], s->b[i]);
             break;
         case 15:
-            s->palette[i] = rgb_to_pixel15(s->r[i], s->g[i], s->b[i]);
+            if (s->ds->bgr)
+                s->palette[i] = rgb_to_pixel15bgr(s->r[i], s->g[i], s->b[i]);
+            else
+                s->palette[i] = rgb_to_pixel15(s->r[i], s->g[i], s->b[i]);
             break;
         case 16:
-            s->palette[i] = rgb_to_pixel16(s->r[i], s->g[i], s->b[i]);
+            if (s->ds->bgr)
+                s->palette[i] = rgb_to_pixel16bgr(s->r[i], s->g[i], s->b[i]);
+            else
+                s->palette[i] = rgb_to_pixel16(s->r[i], s->g[i], s->b[i]);
             break;
         case 32:
-            s->palette[i] = rgb_to_pixel32(s->r[i], s->g[i], s->b[i]);
+            if (s->ds->bgr)
+                s->palette[i] = rgb_to_pixel32bgr(s->r[i], s->g[i], s->b[i]);
+            else
+                s->palette[i] = rgb_to_pixel32(s->r[i], s->g[i], s->b[i]);
             break;
         }
     }
+    if (s->depth == 24)
+        tcx24_invalidate_display(s);
+    else
+        tcx_invalidate_display(s);
 }
 
 static void tcx_draw_line32(TCXState *s1, uint8_t *d, 
@@ -356,7 +354,6 @@ static void tcx_save(QEMUFile *f, void *opaque)
 {
     TCXState *s = opaque;
     
-    qemu_put_be32s(f, (uint32_t *)&s->addr);
     qemu_put_be32s(f, (uint32_t *)&s->vram);
     qemu_put_be32s(f, (uint32_t *)&s->vram24);
     qemu_put_be32s(f, (uint32_t *)&s->cplane);
@@ -374,10 +371,9 @@ static int tcx_load(QEMUFile *f, void *opaque, int version_id)
 {
     TCXState *s = opaque;
     
-    if (version_id != 2)
+    if (version_id != 3)
         return -EINVAL;
 
-    qemu_get_be32s(f, (uint32_t *)&s->addr);
     qemu_get_be32s(f, (uint32_t *)&s->vram);
     qemu_get_be32s(f, (uint32_t *)&s->vram24);
     qemu_get_be32s(f, (uint32_t *)&s->cplane);
@@ -390,7 +386,10 @@ static int tcx_load(QEMUFile *f, void *opaque, int version_id)
     qemu_get_8s(f, &s->dac_index);
     qemu_get_8s(f, &s->dac_state);
     update_palette_entries(s, 0, 256);
-    tcx_invalidate_display(s);
+    if (s->depth == 24)
+        tcx24_invalidate_display(s);
+    else
+        tcx_invalidate_display(s);
 
     return 0;
 }
@@ -467,12 +466,34 @@ static CPUWriteMemoryFunc *tcx_dac_write[3] = {
     tcx_dac_writel,
 };
 
-void tcx_init(DisplayState *ds, uint32_t addr, uint8_t *vram_base,
+static uint32_t tcx_dummy_readl(void *opaque, target_phys_addr_t addr)
+{
+    return 0;
+}
+
+static void tcx_dummy_writel(void *opaque, target_phys_addr_t addr,
+                             uint32_t val)
+{
+}
+
+static CPUReadMemoryFunc *tcx_dummy_read[3] = {
+    tcx_dummy_readl,
+    tcx_dummy_readl,
+    tcx_dummy_readl,
+};
+
+static CPUWriteMemoryFunc *tcx_dummy_write[3] = {
+    tcx_dummy_writel,
+    tcx_dummy_writel,
+    tcx_dummy_writel,
+};
+
+void tcx_init(DisplayState *ds, target_phys_addr_t addr, uint8_t *vram_base,
               unsigned long vram_offset, int vram_size, int width, int height,
               int depth)
 {
     TCXState *s;
-    int io_memory;
+    int io_memory, dummy_memory;
     int size;
 
     s = qemu_mallocz(sizeof(TCXState));
@@ -488,19 +509,23 @@ void tcx_init(DisplayState *ds, uint32_t addr, uint8_t *vram_base,
     // 8-bit plane
     s->vram = vram_base;
     size = vram_size;
-    cpu_register_physical_memory(addr + 0x00800000, size, vram_offset);
+    cpu_register_physical_memory(addr + 0x00800000ULL, size, vram_offset);
     vram_offset += size;
     vram_base += size;
 
     io_memory = cpu_register_io_memory(0, tcx_dac_read, tcx_dac_write, s);
-    cpu_register_physical_memory(addr + 0x00200000, TCX_DAC_NREGS, io_memory);
+    cpu_register_physical_memory(addr + 0x00200000ULL, TCX_DAC_NREGS, io_memory);
 
+    dummy_memory = cpu_register_io_memory(0, tcx_dummy_read, tcx_dummy_write,
+                                          s);
+    cpu_register_physical_memory(addr + 0x00700000ULL, TCX_TEC_NREGS,
+                                 dummy_memory);
     if (depth == 24) {
         // 24-bit plane
         size = vram_size * 4;
         s->vram24 = (uint32_t *)vram_base;
         s->vram24_offset = vram_offset;
-        cpu_register_physical_memory(addr + 0x02000000, size, vram_offset);
+        cpu_register_physical_memory(addr + 0x02000000ULL, size, vram_offset);
         vram_offset += size;
         vram_base += size;
 
@@ -508,15 +533,20 @@ void tcx_init(DisplayState *ds, uint32_t addr, uint8_t *vram_base,
         size = vram_size * 4;
         s->cplane = (uint32_t *)vram_base;
         s->cplane_offset = vram_offset;
-        cpu_register_physical_memory(addr + 0x0a000000, size, vram_offset);
-        graphic_console_init(s->ds, tcx24_update_display, tcx24_invalidate_display,
-                             tcx24_screen_dump, s);
+        cpu_register_physical_memory(addr + 0x0a000000ULL, size, vram_offset);
+        graphic_console_init(s->ds, tcx24_update_display,
+                             tcx24_invalidate_display, tcx24_screen_dump, s);
     } else {
+        cpu_register_physical_memory(addr + 0x00300000ULL, TCX_THC_NREGS_8,
+                                     dummy_memory);
         graphic_console_init(s->ds, tcx_update_display, tcx_invalidate_display,
                              tcx_screen_dump, s);
     }
+    // NetBSD writes here even with 8-bit display
+    cpu_register_physical_memory(addr + 0x00301000ULL, TCX_THC_NREGS_24,
+                                 dummy_memory);
 
-    register_savevm("tcx", addr, 1, tcx_save, tcx_load, s);
+    register_savevm("tcx", addr, 3, tcx_save, tcx_load, s);
     qemu_register_reset(tcx_reset, s);
     tcx_reset(s);
     dpy_resize(s->ds, width, height);

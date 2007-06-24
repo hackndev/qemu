@@ -57,17 +57,16 @@
 # define PXA2XX_RX_RQ_SSP3	66
 # define PXA2XX_TX_RQ_SSP3	67
 
-# define PXA2XX_RAM_BASE	0xa0000000
+# define PXA2XX_SDRAM_BASE	0xa0000000
+# define PXA2XX_INTERNAL_BASE	0x5c000000
+# define PXA2XX_INTERNAL_SIZE	0x40000
 
 /* pxa2xx_pic.c */
-struct pxa2xx_pic_state_s;
 qemu_irq *pxa2xx_pic_init(target_phys_addr_t base, CPUState *env);
 
 /* pxa2xx_timer.c */
-void pxa25x_timer_init(target_phys_addr_t base,
-                qemu_irq *irqs, CPUState *cpustate);
-void pxa27x_timer_init(target_phys_addr_t base,
-                qemu_irq *irqs, qemu_irq irq4, CPUState *cpustate);
+void pxa25x_timer_init(target_phys_addr_t base, qemu_irq *irqs);
+void pxa27x_timer_init(target_phys_addr_t base, qemu_irq *irqs, qemu_irq irq4);
 
 /* pxa2xx_gpio.c */
 struct pxa2xx_gpio_info_s;
@@ -116,6 +115,11 @@ void pxa2xx_ssp_attach(struct pxa2xx_ssp_s *port,
                 uint32_t (*readfn)(void *opaque),
                 void (*writefn)(void *opaque, uint32_t value), void *opaque);
 
+struct pxa2xx_i2c_s;
+struct pxa2xx_i2c_s *pxa2xx_i2c_init(target_phys_addr_t base,
+                qemu_irq irq, uint32_t page_size);
+i2c_bus *pxa2xx_i2c_bus(struct pxa2xx_i2c_s *s);
+
 struct pxa2xx_i2s_s;
 struct pxa2xx_fir_s;
 
@@ -126,6 +130,7 @@ struct pxa2xx_state_s {
     struct pxa2xx_gpio_info_s *gpio;
     struct pxa2xx_lcdc_s *lcd;
     struct pxa2xx_ssp_s **ssp;
+    struct pxa2xx_i2c_s *i2c[2];
     struct pxa2xx_mmci_s *mmc;
     struct pxa2xx_pcmcia_s *pcmcia[2];
     struct pxa2xx_i2s_s *i2s;
@@ -200,8 +205,9 @@ struct pxa2xx_i2s_s {
 # define PA_FMT			"0x%08lx"
 # define REG_FMT		"0x%lx"
 
-struct pxa2xx_state_s *pxa270_init(DisplayState *ds, const char *revision);
-struct pxa2xx_state_s *pxa255_init(DisplayState *ds);
+struct pxa2xx_state_s *pxa270_init(unsigned int sdram_size, DisplayState *ds,
+                const char *revision);
+struct pxa2xx_state_s *pxa255_init(unsigned int sdram_size, DisplayState *ds);
 
 void pxa2xx_reset(int line, int level, void *opaque);
 

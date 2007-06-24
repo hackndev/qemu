@@ -8,6 +8,7 @@
  */
 
 #include "vl.h"
+#include "pixel_ops.h"
 
 typedef void (*drawfn)(uint32_t *, uint8_t *, const uint8_t *, int, int);
 
@@ -300,11 +301,11 @@ static void pxa2xx_descriptor_load(struct pxa2xx_lcdc_s *s)
         } else
             descptr = s->dma_ch[i].descriptor;
 
-        if (!(descptr >= PXA2XX_RAM_BASE && descptr +
-                    sizeof(*desc[i]) <= PXA2XX_RAM_BASE + phys_ram_size))
+        if (!(descptr >= PXA2XX_SDRAM_BASE && descptr +
+                    sizeof(*desc[i]) <= PXA2XX_SDRAM_BASE + phys_ram_size))
             continue;
 
-        descptr -= PXA2XX_RAM_BASE;
+        descptr -= PXA2XX_SDRAM_BASE;
         desc[i] = (struct pxa_frame_descriptor_s *) (phys_ram_base + descptr);
         s->dma_ch[i].descriptor = desc[i]->fdaddr;
         s->dma_ch[i].source = desc[i]->fsaddr;
@@ -575,36 +576,6 @@ static CPUWriteMemoryFunc *pxa2xx_lcdc_writefn[] = {
     pxa2xx_lcdc_write
 };
 
-static inline
-uint32_t rgb_to_pixel8(unsigned int r, unsigned int g, unsigned b)
-{
-    return ((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6);
-}
-
-static inline
-uint32_t rgb_to_pixel15(unsigned int r, unsigned int g, unsigned b)
-{
-    return ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-}
-
-static inline
-uint32_t rgb_to_pixel16(unsigned int r, unsigned int g, unsigned b)
-{
-    return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
-}
-
-static inline
-uint32_t rgb_to_pixel24(unsigned int r, unsigned int g, unsigned b)
-{
-    return (r << 16) | (g << 8) | b;
-}
-
-static inline
-uint32_t rgb_to_pixel32(unsigned int r, unsigned int g, unsigned b)
-{
-    return (r << 16) | (g << 8) | b;
-}
-
 /* Load new palette for a given DMA channel, convert to internal format */
 static void pxa2xx_palette_parse(struct pxa2xx_lcdc_s *s, int ch, int bpp)
 {
@@ -737,8 +708,7 @@ static void pxa2xx_lcdc_dma0_redraw_horiz(struct pxa2xx_lcdc_s *s,
                             dest, src, s->xres, s->dest_width);
             if (addr < start)
                 start = addr;
-            if (new_addr > end)
-                end = new_addr;
+            end = new_addr;
             if (y < *miny)
                 *miny = y;
             if (y >= *maxy)
@@ -794,8 +764,7 @@ static void pxa2xx_lcdc_dma0_redraw_vert(struct pxa2xx_lcdc_s *s,
                             dest, src, s->xres, -dest_width);
             if (addr < start)
                 start = addr;
-            if (new_addr > end)
-                end = new_addr;
+            end = new_addr;
             if (y < *miny)
                 *miny = y;
             if (y >= *maxy)
@@ -855,12 +824,12 @@ static void pxa2xx_update_display(void *opaque)
                 continue;
             }
             fbptr = s->dma_ch[ch].source;
-            if (!(fbptr >= PXA2XX_RAM_BASE &&
-                    fbptr <= PXA2XX_RAM_BASE + phys_ram_size)) {
+            if (!(fbptr >= PXA2XX_SDRAM_BASE &&
+                    fbptr <= PXA2XX_SDRAM_BASE + phys_ram_size)) {
                 pxa2xx_dma_ber_set(s, ch);
                 continue;
             }
-            fbptr -= PXA2XX_RAM_BASE;
+            fbptr -= PXA2XX_SDRAM_BASE;
             fb = phys_ram_base + fbptr;
 
             if (s->dma_ch[ch].command & LDCMD_PAL) {
@@ -926,6 +895,81 @@ void pxa2xx_lcdc_orientation(void *opaque, int angle)
     pxa2xx_lcdc_resize(s);
 }
 
+static void pxa2xx_lcdc_save(QEMUFile *f, void *opaque)
+{
+    struct pxa2xx_lcdc_s *s = (struct pxa2xx_lcdc_s *) opaque;
+    int i;
+
+    qemu_put_be32(f, s->irqlevel);
+    qemu_put_be32(f, s->transp);
+
+    for (i = 0; i < 6; i ++)
+        qemu_put_be32s(f, &s->control[i]);
+    for (i = 0; i < 2; i ++)
+        qemu_put_be32s(f, &s->status[i]);
+    for (i = 0; i < 2; i ++)
+        qemu_put_be32s(f, &s->ovl1c[i]);
+    for (i = 0; i < 2; i ++)
+        qemu_put_be32s(f, &s->ovl2c[i]);
+    qemu_put_be32s(f, &s->ccr);
+    qemu_put_be32s(f, &s->cmdcr);
+    qemu_put_be32s(f, &s->trgbr);
+    qemu_put_be32s(f, &s->tcr);
+    qemu_put_be32s(f, &s->liidr);
+    qemu_put_8s(f, &s->bscntr);
+
+    for (i = 0; i < 7; i ++) {
+        qemu_put_betl(f, s->dma_ch[i].branch);
+        qemu_put_byte(f, s->dma_ch[i].up);
+        qemu_put_buffer(f, s->dma_ch[i].pbuffer, sizeof(s->dma_ch[i].pbuffer));
+
+        qemu_put_betl(f, s->dma_ch[i].descriptor);
+        qemu_put_betl(f, s->dma_ch[i].source);
+        qemu_put_be32s(f, &s->dma_ch[i].id);
+        qemu_put_be32s(f, &s->dma_ch[i].command);
+    }
+}
+
+static int pxa2xx_lcdc_load(QEMUFile *f, void *opaque, int version_id)
+{
+    struct pxa2xx_lcdc_s *s = (struct pxa2xx_lcdc_s *) opaque;
+    int i;
+
+    s->irqlevel = qemu_get_be32(f);
+    s->transp = qemu_get_be32(f);
+
+    for (i = 0; i < 6; i ++)
+        qemu_get_be32s(f, &s->control[i]);
+    for (i = 0; i < 2; i ++)
+        qemu_get_be32s(f, &s->status[i]);
+    for (i = 0; i < 2; i ++)
+        qemu_get_be32s(f, &s->ovl1c[i]);
+    for (i = 0; i < 2; i ++)
+        qemu_get_be32s(f, &s->ovl2c[i]);
+    qemu_get_be32s(f, &s->ccr);
+    qemu_get_be32s(f, &s->cmdcr);
+    qemu_get_be32s(f, &s->trgbr);
+    qemu_get_be32s(f, &s->tcr);
+    qemu_get_be32s(f, &s->liidr);
+    qemu_get_8s(f, &s->bscntr);
+
+    for (i = 0; i < 7; i ++) {
+        s->dma_ch[i].branch = qemu_get_betl(f);
+        s->dma_ch[i].up = qemu_get_byte(f);
+        qemu_get_buffer(f, s->dma_ch[i].pbuffer, sizeof(s->dma_ch[i].pbuffer));
+
+        s->dma_ch[i].descriptor = qemu_get_betl(f);
+        s->dma_ch[i].source = qemu_get_betl(f);
+        qemu_get_be32s(f, &s->dma_ch[i].id);
+        qemu_get_be32s(f, &s->dma_ch[i].command);
+    }
+
+    s->bpp = LCCR3_BPP(s->control[3]);
+    s->xres = s->yres = s->pal_for = -1;
+
+    return 0;
+}
+
 #define BITS 8
 #include "pxa2xx_template.h"
 #define BITS 15
@@ -953,7 +997,7 @@ struct pxa2xx_lcdc_s *pxa2xx_lcdc_init(target_phys_addr_t base, qemu_irq irq,
 
     iomemtype = cpu_register_io_memory(0, pxa2xx_lcdc_readfn,
                     pxa2xx_lcdc_writefn, s);
-    cpu_register_physical_memory(base, 0x000fffff, iomemtype);
+    cpu_register_physical_memory(base, 0x00100000, iomemtype);
 
     graphic_console_init(ds, pxa2xx_update_display,
                     pxa2xx_invalidate_display, pxa2xx_screen_dump, s);
@@ -991,6 +1035,10 @@ struct pxa2xx_lcdc_s *pxa2xx_lcdc_init(target_phys_addr_t base, qemu_irq irq,
         fprintf(stderr, "%s: Bad color depth\n", __FUNCTION__);
         exit(1);
     }
+
+    register_savevm("pxa2xx_lcdc", 0, 0,
+                    pxa2xx_lcdc_save, pxa2xx_lcdc_load, s);
+
     return s;
 }
 

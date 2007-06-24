@@ -181,6 +181,7 @@ BASE_LDFLAGS+=-Wl,-T,$(SRC_PATH)/$(ARCH).ld
 endif
 
 ifeq ($(ARCH),mips)
+OP_CFLAGS+=-mabi=32 -G0 -fno-PIC -mno-abicalls -fomit-frame-pointer -fno-delayed-branch -Wa,-O0
 ifeq ($(WORDS_BIGENDIAN),yes)
 BASE_LDFLAGS+=-Wl,-T,$(SRC_PATH)/$(ARCH).ld
 else
@@ -189,6 +190,7 @@ endif
 endif
 
 ifeq ($(ARCH),mips64)
+OP_CFLAGS+=-mabi=n32 -G0 -fno-PIC -mno-abicalls -fomit-frame-pointer -fno-delayed-branch -Wa,-O0
 ifeq ($(WORDS_BIGENDIAN),yes)
 BASE_LDFLAGS+=-Wl,-T,$(SRC_PATH)/$(ARCH).ld
 else
@@ -306,7 +308,7 @@ LIBOBJS+= op_helper.o helper.o
 endif
 
 ifeq ($(TARGET_BASE_ARCH), m68k)
-LIBOBJS+= helper.o
+LIBOBJS+= op_helper.o helper.o
 endif
 
 ifeq ($(TARGET_BASE_ARCH), alpha)
@@ -363,6 +365,7 @@ endif
 # must use static linking to avoid leaving stuff in virtual address space
 VL_OBJS=vl.o osdep.o readline.o monitor.o pci.o console.o loader.o isa_mmio.o
 VL_OBJS+=cutils.o
+VL_OBJS+=host-utils.o
 VL_OBJS+=block.o block-raw.o
 VL_OBJS+=block-cow.o block-qcow.o aes.o block-vmdk.o block-cloop.o block-dmg.o block-bochs.o block-vpc.o block-vvfat.o block-qcow2.o
 VL_OBJS+=irq.o
@@ -399,11 +402,14 @@ SOUND_HW += fmopl.o adlib.o
 endif
 AUDIODRV+= wavcapture.o
 
+VL_OBJS += i2c.o smbus.o
+
 # SCSI layer
 VL_OBJS+= scsi-disk.o cdrom.o lsi53c895a.o
 
 # USB layer
 VL_OBJS+= usb.o usb-hub.o usb-linux.o usb-hid.o usb-ohci.o usb-msd.o
+VL_OBJS+= usb-wacom.o
 
 # EEPROM emulation
 VL_OBJS += eeprom93xx.o
@@ -433,33 +439,37 @@ ifeq ($(TARGET_BASE_ARCH), mips)
 VL_OBJS+= mips_r4k.o mips_malta.o mips_pica61.o
 VL_OBJS+= mips_timer.o mips_int.o dma.o vga.o serial.o i8254.o i8259.o
 VL_OBJS+= ide.o gt64xxx.o pckbd.o ps2.o fdc.o mc146818rtc.o usb-uhci.o acpi.o ds1225y.o
-VL_OBJS+= piix_pci.o parallel.o mixeng.o cirrus_vga.o $(SOUND_HW) $(AUDIODRV)
+VL_OBJS+= piix_pci.o smbus_eeprom.o parallel.o mixeng.o cirrus_vga.o $(SOUND_HW) $(AUDIODRV)
 CPPFLAGS += -DHAS_AUDIO
 endif
 ifeq ($(TARGET_BASE_ARCH), sparc)
 ifeq ($(TARGET_ARCH), sparc64)
 VL_OBJS+= sun4u.o ide.o pckbd.o ps2.o vga.o apb_pci.o
 VL_OBJS+= fdc.o mc146818rtc.o serial.o m48t59.o
-VL_OBJS+= cirrus_vga.o parallel.o
+VL_OBJS+= cirrus_vga.o parallel.o ptimer.o
 else
 VL_OBJS+= sun4m.o tcx.o pcnet.o iommu.o m48t59.o slavio_intctl.o
 VL_OBJS+= slavio_timer.o slavio_serial.o slavio_misc.o fdc.o esp.o sparc32_dma.o
-VL_OBJS+= cs4231.o
+VL_OBJS+= cs4231.o ptimer.o
 endif
 endif
 ifeq ($(TARGET_BASE_ARCH), arm)
 VL_OBJS+= integratorcp.o versatilepb.o ps2.o smc91c111.o arm_pic.o arm_timer.o
 VL_OBJS+= arm_boot.o pl011.o pl050.o pl080.o pl110.o pl181.o pl190.o
-VL_OBJS+= versatile_pci.o sd.o
+VL_OBJS+= versatile_pci.o sd.o ptimer.o
 VL_OBJS+= arm_gic.o realview.o arm_sysctl.o
 VL_OBJS+= arm-semi.o
 VL_OBJS+= pxa2xx.o pxa2xx_pic.o pxa2xx_gpio.o pxa2xx_timer.o pxa2xx_dma.o
-VL_OBJS+= pxa2xx_lcd.o pxa2xx_mmci.o pxa2xx_pcmcia.o max111x.o
-VL_OBJS+= spitz.o palm.o ads7846.o ide.o serial.o nand.o mdoc.o $(AUDIODRV)
+VL_OBJS+= pxa2xx_lcd.o pxa2xx_mmci.o pxa2xx_pcmcia.o max111x.o max7310.o
+VL_OBJS+= spitz.o palm.o mdoc.o ads7846.o ide.o serial.o nand.o $(AUDIODRV) wm8750.o
 CPPFLAGS += -DHAS_AUDIO
 endif
 ifeq ($(TARGET_BASE_ARCH), sh4)
 VL_OBJS+= shix.o sh7750.o sh7750_regnames.o tc58128.o
+endif
+ifeq ($(TARGET_BASE_ARCH), m68k)
+VL_OBJS+= an5206.o mcf5206.o ptimer.o mcf_uart.o mcf_intc.o mcf5208.o mcf_fec.o
+VL_OBJS+= m68k-semi.o
 endif
 ifdef CONFIG_GDBSTUB
 VL_OBJS+=gdbstub.o 
@@ -583,6 +593,10 @@ cpu-exec.o: cpu-exec.c
 signal.o: signal.c
 	$(CC) $(HELPER_CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) -c -o $@ $<
 
+vga.o: pixel_ops.h
+
+tcx.o: pixel_ops.h
+
 ifeq ($(TARGET_BASE_ARCH), i386)
 op.o: op.c opreg_template.h ops_template.h ops_template_mem.h ops_mem.h ops_sse.h
 endif
@@ -593,8 +607,10 @@ pl110.o: pl110_template.h
 endif
 
 ifeq ($(TARGET_BASE_ARCH), sparc)
-op.o: op.c op_template.h op_mem.h fop_template.h fbranch_template.h
-magic_load.o: elf_op.h
+helper.o: cpu.h exec-all.h
+op.o: op.c op_template.h op_mem.h fop_template.h fbranch_template.h exec.h cpu.h
+op_helper.o: exec.h softmmu_template.h cpu.h
+translate.o: cpu.h exec-all.h disas.h
 endif
 
 ifeq ($(TARGET_BASE_ARCH), ppc)
@@ -605,8 +621,8 @@ endif
 
 ifeq ($(TARGET_BASE_ARCH), mips)
 helper.o: cpu.h exec-all.h
-op.o: op_template.c fop_template.c op_mem.c exec.h
-op_helper.o: op_helper_mem.c exec.h softmmu_template.h
+op.o: op_template.c fop_template.c op_mem.c exec.h cpu.h
+op_helper.o: op_helper_mem.c exec.h softmmu_template.h cpu.h
 translate.o: translate_init.c exec-all.h disas.h
 endif
 

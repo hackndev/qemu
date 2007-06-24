@@ -87,7 +87,7 @@ static void sdl_resize(DisplayState *ds, int w, int h)
     ds->data = screen->pixels;
     ds->linesize = screen->pitch;
     ds->depth = screen->format->BitsPerPixel;
-    if (ds->depth == 32 && screen->format->Rshift == 0) {
+    if (screen->format->Bshift > screen->format->Rshift) {
         ds->bgr = 1;
     } else {
         ds->bgr = 0;
@@ -223,8 +223,12 @@ static void sdl_update_caption(void)
 
     if (!vm_running)
         status = " [Stopped]";
-    else if (gui_grab)
-        status = " - Press Ctrl-Alt to exit grab";
+    else if (gui_grab) {
+        if (!alt_grab)
+            status = " - Press Ctrl-Alt to exit grab";
+        else
+            status = " - Press Ctrl-Alt-Shift to exit grab";
+    }
 
     if (qemu_name)
         snprintf(buf, sizeof(buf), "QEMU (%s)%s", qemu_name, status);
@@ -357,8 +361,13 @@ static void sdl_refresh(DisplayState *ds)
         case SDL_KEYDOWN:
         case SDL_KEYUP:
             if (ev->type == SDL_KEYDOWN) {
-                mod_state = (SDL_GetModState() & gui_grab_code) ==
-                    gui_grab_code;
+                if (!alt_grab) {
+                    mod_state = (SDL_GetModState() & gui_grab_code) ==
+                                gui_grab_code;
+                } else {
+                    mod_state = (SDL_GetModState() & (gui_grab_code | KMOD_LSHIFT)) ==
+                                (gui_grab_code | KMOD_LSHIFT);
+                }
                 gui_key_modifier_pressed = mod_state;
                 if (gui_key_modifier_pressed) {
                     int keycode;
@@ -407,7 +416,8 @@ static void sdl_refresh(DisplayState *ds)
                         case SDLK_END: keysym = QEMU_KEY_END; break;
                         case SDLK_PAGEUP: keysym = QEMU_KEY_PAGEUP; break;
                         case SDLK_PAGEDOWN: keysym = QEMU_KEY_PAGEDOWN; break;
-                        case SDLK_BACKSPACE: keysym = QEMU_KEY_BACKSPACE; break;                        case SDLK_DELETE: keysym = QEMU_KEY_DELETE; break;
+                        case SDLK_BACKSPACE: keysym = QEMU_KEY_BACKSPACE; break;
+                        case SDLK_DELETE: keysym = QEMU_KEY_DELETE; break;
                         default: break;
                         }
                     }
@@ -418,7 +428,12 @@ static void sdl_refresh(DisplayState *ds)
                     }
                 }
             } else if (ev->type == SDL_KEYUP) {
-                mod_state = (ev->key.keysym.mod & gui_grab_code);
+                if (!alt_grab) {
+                    mod_state = (ev->key.keysym.mod & gui_grab_code);
+                } else {
+                    mod_state = (ev->key.keysym.mod &
+                                 (gui_grab_code | KMOD_LSHIFT));
+                }
                 if (!mod_state) {
                     if (gui_key_modifier_pressed) {
                         gui_key_modifier_pressed = 0;
@@ -450,7 +465,8 @@ static void sdl_refresh(DisplayState *ds)
             break;
         case SDL_QUIT:
             if (!no_quit) {
-               qemu_system_shutdown_request();
+                qemu_system_shutdown_request();
+                vm_start();	/* In case we're paused */
             }
             break;
         case SDL_MOUSEMOTION:

@@ -41,7 +41,7 @@ dyngen$(EXESUF): dyngen.c
 clean:
 # avoid old build problems by removing potentially incorrect old files
 	rm -f config.mak config.h op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h 
-	rm -f *.o *.a $(TOOLS) dyngen$(EXESUF) TAGS *.pod *~ */*~
+	rm -f *.o *.a $(TOOLS) dyngen$(EXESUF) TAGS cscope.* *.pod *~ */*~
 	$(MAKE) -C tests clean
 	for d in $(TARGET_DIRS); do \
 	$(MAKE) -C $$d $@ || exit 1 ; \
@@ -71,7 +71,7 @@ install: all $(if $(BUILD_DOCS),install-doc)
 	$(INSTALL) -m 755 -s $(TOOLS) "$(DESTDIR)$(bindir)"
 	mkdir -p "$(DESTDIR)$(datadir)"
 	for x in bios.bin vgabios.bin vgabios-cirrus.bin ppc_rom.bin \
-		video.x openbios-sparc32 linux_boot.bin pxe-ne2k_pci.bin \
+		video.x openbios-sparc32 pxe-ne2k_pci.bin \
 		pxe-rtl8139.bin pxe-pcnet.bin; do \
 		$(INSTALL) -m 644 $(SRC_PATH)/pc-bios/$$x "$(DESTDIR)$(datadir)"; \
 	done
@@ -161,7 +161,6 @@ tarbin:
 	$(datadir)/ppc_rom.bin \
 	$(datadir)/video.x \
 	$(datadir)/openbios-sparc32 \
-	$(datadir)/linux_boot.bin \
         $(datadir)/pxe-ne2k_pci.bin \
 	$(datadir)/pxe-rtl8139.bin \
         $(datadir)/pxe-pcnet.bin \

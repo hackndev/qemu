@@ -29,6 +29,8 @@
 #include "exec-all.h"
 #include "disas.h"
 
+//#define TRACE_PC
+
 #define ENABLE_ARCH_5J  0
 #define ENABLE_ARCH_6   1
 #define ENABLE_ARCH_6T2 1
@@ -2330,9 +2332,9 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
 
             /* branch link/exchange thumb (blx) */
             val = (uint32_t)s->pc;
-            gen_op_movl_T0_im(val);
-            gen_movl_reg_T0(s, 14);
+            gen_op_movl_T1_im(val);
             gen_movl_T0_reg(s, rm);
+            gen_movl_reg_T1(s, 14);
             gen_bx(s);
             break;
         case 0x5: /* saturating add/subtract */
@@ -2842,8 +2844,8 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         } else {
                             /* store */
                             if (i == 15) {
-                                /* special case: r15 = PC + 12 */
-                                val = (long)s->pc + 8;
+                                /* special case: r15 = PC + 8 */
+                                val = (long)s->pc + 4;
                                 gen_op_movl_TN_im[0](val);
                             } else if (user) {
                                 gen_op_movl_T0_user(i);

@@ -86,7 +86,7 @@ struct SerialState {
     qemu_irq irq;
     CharDriverState *chr;
     int last_break_enable;
-    target_ulong base;
+    target_phys_addr_t base;
     int it_shift;
 };
 
@@ -384,30 +384,44 @@ void serial_mm_writeb (void *opaque,
 uint32_t serial_mm_readw (void *opaque, target_phys_addr_t addr)
 {
     SerialState *s = opaque;
+    uint32_t val;
 
-    return serial_ioport_read(s, (addr - s->base) >> s->it_shift) & 0xFFFF;
+    val = serial_ioport_read(s, (addr - s->base) >> s->it_shift) & 0xFFFF;
+#ifdef TARGET_WORDS_BIGENDIAN
+    val = bswap16(val);
+#endif
+    return val;
 }
 
 void serial_mm_writew (void *opaque,
                        target_phys_addr_t addr, uint32_t value)
 {
     SerialState *s = opaque;
-
+#ifdef TARGET_WORDS_BIGENDIAN
+    value = bswap16(value);
+#endif
     serial_ioport_write(s, (addr - s->base) >> s->it_shift, value & 0xFFFF);
 }
 
 uint32_t serial_mm_readl (void *opaque, target_phys_addr_t addr)
 {
     SerialState *s = opaque;
+    uint32_t val;
 
-    return serial_ioport_read(s, (addr - s->base) >> s->it_shift);
+    val = serial_ioport_read(s, (addr - s->base) >> s->it_shift);
+#ifdef TARGET_WORDS_BIGENDIAN
+    val = bswap32(val);
+#endif
+    return val;
 }
 
 void serial_mm_writel (void *opaque,
                        target_phys_addr_t addr, uint32_t value)
 {
     SerialState *s = opaque;
-
+#ifdef TARGET_WORDS_BIGENDIAN
+    value = bswap32(value);
+#endif
     serial_ioport_write(s, (addr - s->base) >> s->it_shift, value);
 }
 
@@ -423,7 +437,7 @@ static CPUWriteMemoryFunc *serial_mm_write[] = {
     &serial_mm_writel,
 };
 
-SerialState *serial_mm_init (target_ulong base, int it_shift,
+SerialState *serial_mm_init (target_phys_addr_t base, int it_shift,
                              qemu_irq irq, CharDriverState *chr,
                              int ioregister)
 {

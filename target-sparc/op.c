@@ -926,12 +926,18 @@ void OPPROTO op_mulx_T1_T0(void)
 
 void OPPROTO op_udivx_T1_T0(void)
 {
+    if (T1 == 0) {
+        raise_exception(TT_DIV_ZERO);
+    }
     T0 /= T1;
     FORCE_RET();
 }
 
 void OPPROTO op_sdivx_T1_T0(void)
 {
+    if (T1 == 0) {
+        raise_exception(TT_DIV_ZERO);
+    }
     if (T0 == INT64_MIN && T1 == -1)
 	T0 = INT64_MIN;
     else
@@ -1090,12 +1096,38 @@ void OPPROTO op_wrccr(void)
 
 void OPPROTO op_rdtick(void)
 {
-    T0 = 0; // XXX read cycle counter and bit 31
+    T0 = do_tick_get_count(env->tick);
 }
 
 void OPPROTO op_wrtick(void)
 {
-    T0 = 0; // XXX write cycle counter and bit 31
+    do_tick_set_count(env->tick, T0);
+}
+
+void OPPROTO op_wrtick_cmpr(void)
+{
+    do_tick_set_limit(env->tick, T0);
+}
+
+void OPPROTO op_rdstick(void)
+{
+    T0 = do_tick_get_count(env->stick);
+}
+
+void OPPROTO op_wrstick(void)
+{
+    do_tick_set_count(env->stick, T0);
+    do_tick_set_count(env->hstick, T0);
+}
+
+void OPPROTO op_wrstick_cmpr(void)
+{
+    do_tick_set_limit(env->stick, T0);
+}
+
+void OPPROTO op_wrhstick_cmpr(void)
+{
+    do_tick_set_limit(env->hstick, T0);
 }
 
 void OPPROTO op_rdtpc(void)

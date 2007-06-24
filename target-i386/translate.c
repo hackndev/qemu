@@ -2245,7 +2245,7 @@ static void gen_exception(DisasContext *s, int trapno, target_ulong cur_eip)
 }
 
 /* an interrupt is different from an exception because of the
-   priviledge checks */
+   privilege checks */
 static void gen_interrupt(DisasContext *s, int intno, 
                           target_ulong cur_eip, target_ulong next_eip)
 {
@@ -6431,7 +6431,7 @@ static void optimize_flags(uint16_t *opc_buf, int opc_buf_len)
 
     opc_ptr = opc_buf + opc_buf_len;
     /* live_flags contains the flags needed by the next instructions
-       in the code. At the end of the bloc, we consider that all the
+       in the code. At the end of the block, we consider that all the
        flags are live. */
     live_flags = CC_OSZAPC;
     while (opc_ptr > opc_buf) {

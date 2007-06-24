@@ -23,6 +23,7 @@
  */
 #include "vl.h"
 #include "vga_int.h"
+#include "pixel_ops.h"
 
 //#define DEBUG_VGA
 //#define DEBUG_VGA_MEM
@@ -346,7 +347,7 @@ static void vga_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         case 0x09:
         case 0x0c:
         case 0x0d:
-        case 0x12: /* veritcal display end */
+        case 0x12: /* vertical display end */
             s->cr[s->cr_index] = val;
             break;
         default:
@@ -812,37 +813,20 @@ typedef void vga_draw_glyph9_func(uint8_t *d, int linesize,
 typedef void vga_draw_line_func(VGAState *s1, uint8_t *d, 
                                 const uint8_t *s, int width);
 
-static inline unsigned int rgb_to_pixel8(unsigned int r, unsigned int g, unsigned b)
-{
-    return ((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6);
-}
-
-static inline unsigned int rgb_to_pixel15(unsigned int r, unsigned int g, unsigned b)
-{
-    return ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-}
-
-static inline unsigned int rgb_to_pixel16(unsigned int r, unsigned int g, unsigned b)
-{
-    return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
-}
-
-static inline unsigned int rgb_to_pixel32(unsigned int r, unsigned int g, unsigned b)
-{
-    return (r << 16) | (g << 8) | b;
-}
-
-static inline unsigned int rgb_to_pixel32bgr(unsigned int r, unsigned int g, unsigned b)
-{
-    return (b << 16) | (g << 8) | r;
-}
-
 #define DEPTH 8
 #include "vga_template.h"
 
 #define DEPTH 15
 #include "vga_template.h"
 
+#define BGR_FORMAT
+#define DEPTH 15
+#include "vga_template.h"
+
+#define DEPTH 16
+#include "vga_template.h"
+
+#define BGR_FORMAT
 #define DEPTH 16
 #include "vga_template.h"
 
@@ -870,10 +854,28 @@ static unsigned int rgb_to_pixel15_dup(unsigned int r, unsigned int g, unsigned 
     return col;
 }
 
+static unsigned int rgb_to_pixel15bgr_dup(unsigned int r, unsigned int g,
+                                          unsigned int b)
+{
+    unsigned int col;
+    col = rgb_to_pixel15bgr(r, g, b);
+    col |= col << 16;
+    return col;
+}
+
 static unsigned int rgb_to_pixel16_dup(unsigned int r, unsigned int g, unsigned b)
 {
     unsigned int col;
     col = rgb_to_pixel16(r, g, b);
+    col |= col << 16;
+    return col;
+}
+
+static unsigned int rgb_to_pixel16bgr_dup(unsigned int r, unsigned int g,
+                                          unsigned int b)
+{
+    unsigned int col;
+    col = rgb_to_pixel16bgr(r, g, b);
     col |= col << 16;
     return col;
 }
@@ -998,7 +1000,7 @@ static int update_basic_params(VGAState *s)
     return full_update;
 }
 
-#define NB_DEPTHS 5
+#define NB_DEPTHS 7
 
 static inline int get_depth_index(DisplayState *s)
 {
@@ -1007,9 +1009,15 @@ static inline int get_depth_index(DisplayState *s)
     case 8:
         return 0;
     case 15:
-        return 1;
+        if (s->bgr)
+            return 5;
+        else
+            return 1;
     case 16:
-        return 2;
+        if (s->bgr)
+            return 6;
+        else
+            return 2;
     case 32:
         if (s->bgr)
             return 4;
@@ -1024,6 +1032,8 @@ static vga_draw_glyph8_func *vga_draw_glyph8_table[NB_DEPTHS] = {
     vga_draw_glyph8_16,
     vga_draw_glyph8_32,
     vga_draw_glyph8_32,
+    vga_draw_glyph8_16,
+    vga_draw_glyph8_16,
 };
 
 static vga_draw_glyph8_func *vga_draw_glyph16_table[NB_DEPTHS] = {
@@ -1032,6 +1042,8 @@ static vga_draw_glyph8_func *vga_draw_glyph16_table[NB_DEPTHS] = {
     vga_draw_glyph16_16,
     vga_draw_glyph16_32,
     vga_draw_glyph16_32,
+    vga_draw_glyph16_16,
+    vga_draw_glyph16_16,
 };
 
 static vga_draw_glyph9_func *vga_draw_glyph9_table[NB_DEPTHS] = {
@@ -1040,6 +1052,8 @@ static vga_draw_glyph9_func *vga_draw_glyph9_table[NB_DEPTHS] = {
     vga_draw_glyph9_16,
     vga_draw_glyph9_32,
     vga_draw_glyph9_32,
+    vga_draw_glyph9_16,
+    vga_draw_glyph9_16,
 };
     
 static const uint8_t cursor_glyph[32 * 4] = {
@@ -1260,60 +1274,80 @@ static vga_draw_line_func *vga_draw_line_table[NB_DEPTHS * VGA_DRAW_LINE_NB] = {
     vga_draw_line2_16,
     vga_draw_line2_32,
     vga_draw_line2_32,
+    vga_draw_line2_16,
+    vga_draw_line2_16,
 
     vga_draw_line2d2_8,
     vga_draw_line2d2_16,
     vga_draw_line2d2_16,
     vga_draw_line2d2_32,
     vga_draw_line2d2_32,
+    vga_draw_line2d2_16,
+    vga_draw_line2d2_16,
 
     vga_draw_line4_8,
     vga_draw_line4_16,
     vga_draw_line4_16,
     vga_draw_line4_32,
     vga_draw_line4_32,
+    vga_draw_line4_16,
+    vga_draw_line4_16,
 
     vga_draw_line4d2_8,
     vga_draw_line4d2_16,
     vga_draw_line4d2_16,
     vga_draw_line4d2_32,
     vga_draw_line4d2_32,
+    vga_draw_line4d2_16,
+    vga_draw_line4d2_16,
 
     vga_draw_line8d2_8,
     vga_draw_line8d2_16,
     vga_draw_line8d2_16,
     vga_draw_line8d2_32,
     vga_draw_line8d2_32,
+    vga_draw_line8d2_16,
+    vga_draw_line8d2_16,
 
     vga_draw_line8_8,
     vga_draw_line8_16,
     vga_draw_line8_16,
     vga_draw_line8_32,
     vga_draw_line8_32,
+    vga_draw_line8_16,
+    vga_draw_line8_16,
 
     vga_draw_line15_8,
     vga_draw_line15_15,
     vga_draw_line15_16,
     vga_draw_line15_32,
     vga_draw_line15_32bgr,
+    vga_draw_line15_15bgr,
+    vga_draw_line15_16bgr,
 
     vga_draw_line16_8,
     vga_draw_line16_15,
     vga_draw_line16_16,
     vga_draw_line16_32,
     vga_draw_line16_32bgr,
+    vga_draw_line16_15bgr,
+    vga_draw_line16_16bgr,
 
     vga_draw_line24_8,
     vga_draw_line24_15,
     vga_draw_line24_16,
     vga_draw_line24_32,
     vga_draw_line24_32bgr,
+    vga_draw_line24_15bgr,
+    vga_draw_line24_16bgr,
 
     vga_draw_line32_8,
     vga_draw_line32_15,
     vga_draw_line32_16,
     vga_draw_line32_32,
     vga_draw_line32_32bgr,
+    vga_draw_line32_15bgr,
+    vga_draw_line32_16bgr,
 };
 
 typedef unsigned int rgb_to_pixel_dup_func(unsigned int r, unsigned int g, unsigned b);
@@ -1324,6 +1358,8 @@ static rgb_to_pixel_dup_func *rgb_to_pixel_dup_table[NB_DEPTHS] = {
     rgb_to_pixel16_dup,
     rgb_to_pixel32_dup,
     rgb_to_pixel32bgr_dup,
+    rgb_to_pixel15bgr_dup,
+    rgb_to_pixel16bgr_dup,
 };
 
 static int vga_get_bpp(VGAState *s)
@@ -2036,8 +2072,8 @@ static void vga_save_dpy_refresh(DisplayState *s)
 {
 }
 
-static int ppm_save(const char *filename, uint8_t *data, 
-                    int w, int h, int linesize)
+int ppm_save(const char *filename, uint8_t *data, 
+             int w, int h, int linesize)
 {
     FILE *f;
     uint8_t *d, *d1;

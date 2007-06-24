@@ -166,7 +166,7 @@ static void ld_gpio_setup(struct pxa2xx_state_s *cpu)
     pxa2xx_gpio_set(cpu->gpio, 7, 1);
     pxa2xx_gpio_set(cpu->gpio, 8, 1);
     pxa2xx_gpio_set(cpu->gpio, 9, 0);
-    pxa2xx_gpio_set(cpu->gpio, 10, 1); /* hotsync, deassert for recovery console */
+    pxa2xx_gpio_set(cpu->gpio, 10, 0); /* hotsync, deassert for recovery console */
     pxa2xx_gpio_set(cpu->gpio, 11, 0);
     pxa2xx_gpio_set(cpu->gpio, 12, 0); /* <--- power switch, for hard reset :D */
     pxa2xx_gpio_set(cpu->gpio, 13, 0);
@@ -699,14 +699,14 @@ static void ld_init(int ram_size, int vga_ram_size, int boot_device,
 
     /* Setup initial (reset) machine state */
     cpu->env->regs[15] = 0;
-    cpu->env->regs[15] = PXA2XX_RAM_BASE;
+    //cpu->env->regs[15] = PXA2XX_RAM_BASE;
 
     memset(phys_ram_base, 0, ld_ram);
     memset(phys_ram_base + ld_ram, 0, ld_rom);
-    //load_image("brahma-bootrom", phys_ram_base + ld_ram);
+    load_image("brahma-bootrom", phys_ram_base + ld_ram);
 
-    arm_load_kernel(cpu->env, ld_ram, kernel_filename, kernel_cmdline,
-                    initrd_filename, 835, PXA2XX_RAM_BASE);
+    //arm_load_kernel(cpu->env, ld_ram, kernel_filename, kernel_cmdline,
+    //                initrd_filename, 835, PXA2XX_RAM_BASE);
  
 }
 
@@ -716,7 +716,7 @@ static void t650_init(int ram_size, int vga_ram_size, int boot_device,
                 const char *initrd_filename)
 {
     uint32_t t650_ram = 0x02000000;
-    uint32_t t650_rom = 0x00000000;
+    uint32_t t650_rom = 0x00001000;
     uint32_t t650_ram_int = 0x00040000;
     struct pxa2xx_state_s *cpu;
 
@@ -730,7 +730,7 @@ static void t650_init(int ram_size, int vga_ram_size, int boot_device,
     }
     cpu_register_physical_memory(PXA2XX_RAM_BASE, t650_ram, IO_MEM_RAM);
 
-    //cpu_register_physical_memory(0, t650_rom, t650_ram | IO_MEM_ROM);
+    cpu_register_physical_memory(0, 0x800, t650_ram | IO_MEM_ROM);
 
     cpu_register_physical_memory(0x5c000000, 0x40000, (t650_ram + t650_rom) | IO_MEM_RAM);
     /* Setup peripherals */
@@ -742,8 +742,12 @@ static void t650_init(int ram_size, int vga_ram_size, int boot_device,
     
     mdoc_init();
 
+    //if (bdrv_read(mtd_bdrv, 0, phys_ram_base + t650_ram, 4) == -1)
+    //    printf("%s: error reading boot block\n", __FUNCTION__);
+
+
     //memset(phys_ram_base + t650_ram, 0, t650_rom);
-    //load_image("palmt650.rom", phys_ram_base + t650_ram);
+    load_image("palmt650.rom", phys_ram_base + t650_ram);
 
     //arm_load_kernel(cpu->env, t650_ram, kernel_filename, kernel_cmdline,
     //                initrd_filename, 909, PXA2XX_RAM_BASE);

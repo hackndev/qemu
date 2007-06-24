@@ -1,5 +1,5 @@
 /*
- * QEMU Malta board support
+ * QEMU Acer Pica Machine support
  *
  * Copyright (c) 2007 Hervé Poussineau
  *
@@ -51,6 +51,7 @@ static void main_cpu_reset(void *opaque)
 {
     CPUState *env = opaque;
     cpu_reset(env);
+    cpu_mips_register(env, NULL);
 }
 
 static
@@ -150,11 +151,8 @@ void mips_pica61_init (int ram_size, int vga_ram_size, int boot_device,
             serial_mm_init(serial_base[i], 0, i8259[serial_irq[i]], serial_hds[i], 1);
         }
     }
-    for (i = 0; i < MAX_PARALLEL_PORTS; i++) {
-        if (parallel_hds[i]) {
-            /* FIXME: memory mapped! parallel_init(0x80008000, i8259[17], parallel_hds[i]); */
-        }
-    }
+    /* Parallel port */
+    if (parallel_hds[0]) parallel_mm_init(0x80008000, 0, i8259[1], parallel_hds[0]);
 
     /* Sound card */
     /* FIXME: missing Jazz sound, IRQ 18 */

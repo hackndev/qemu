@@ -1312,9 +1312,41 @@ static const uint8_t mips_syscall_args[] = {
 	MIPS_SYS(sys_waitid	, 4)
 	MIPS_SYS(sys_ni_syscall	, 0)	/* available, was setaltroot */
 	MIPS_SYS(sys_add_key	, 5)
-	MIPS_SYS(sys_request_key	, 4)
+	MIPS_SYS(sys_request_key, 4)
 	MIPS_SYS(sys_keyctl	, 5)
 	MIPS_SYS(sys_set_thread_area, 1)
+	MIPS_SYS(sys_inotify_init, 0)
+	MIPS_SYS(sys_inotify_add_watch, 3) /* 4285 */
+	MIPS_SYS(sys_inotify_rm_watch, 2)
+	MIPS_SYS(sys_migrate_pages, 4)
+	MIPS_SYS(sys_openat, 4)
+	MIPS_SYS(sys_mkdirat, 3)
+	MIPS_SYS(sys_mknodat, 4)	/* 4290 */
+	MIPS_SYS(sys_fchownat, 5)
+	MIPS_SYS(sys_futimesat, 3)
+	MIPS_SYS(sys_fstatat64, 4)
+	MIPS_SYS(sys_unlinkat, 3)
+	MIPS_SYS(sys_renameat, 4)	/* 4295 */
+	MIPS_SYS(sys_linkat, 5)
+	MIPS_SYS(sys_symlinkat, 3)
+	MIPS_SYS(sys_readlinkat, 4)
+	MIPS_SYS(sys_fchmodat, 3)
+	MIPS_SYS(sys_faccessat, 3)	/* 4300 */
+	MIPS_SYS(sys_pselect6, 6)
+	MIPS_SYS(sys_ppoll, 5)
+	MIPS_SYS(sys_unshare, 1)
+	MIPS_SYS(sys_splice, 4)
+	MIPS_SYS(sys_sync_file_range, 7) /* 4305 */
+	MIPS_SYS(sys_tee, 4)
+	MIPS_SYS(sys_vmsplice, 4)
+	MIPS_SYS(sys_move_pages, 6)
+	MIPS_SYS(sys_set_robust_list, 2)
+	MIPS_SYS(sys_get_robust_list, 3) /* 4310 */
+	MIPS_SYS(sys_kexec_load, 4)
+	MIPS_SYS(sys_getcpu, 3)
+	MIPS_SYS(sys_epoll_pwait, 6)
+	MIPS_SYS(sys_ioprio_set, 3)
+	MIPS_SYS(sys_ioprio_get, 2)
 };
 
 #undef MIPS_SYS
@@ -1322,53 +1354,45 @@ static const uint8_t mips_syscall_args[] = {
 void cpu_loop(CPUMIPSState *env)
 {
     target_siginfo_t info;
-    int trapnr, ret, nb_args;
+    int trapnr, ret;
     unsigned int syscall_num;
-    target_ulong arg5, arg6, sp_reg;
 
     for(;;) {
         trapnr = cpu_mips_exec(env);
         switch(trapnr) {
         case EXCP_SYSCALL:
-            {
-                syscall_num = env->gpr[2] - 4000;
-                env->PC += 4;
-                if (syscall_num >= sizeof(mips_syscall_args)) {
-                    ret = -ENOSYS;
-                } else {
-                    nb_args = mips_syscall_args[syscall_num];
-                    if (nb_args >= 5) {
-                        sp_reg = env->gpr[29];
-                        /* these arguments are taken from the stack */
-                        arg5 = tgetl(sp_reg + 16);
-                        if (nb_args >= 6) {
-                            arg6 = tgetl(sp_reg + 20);
-                        } else {
-                            arg6 = 0;
-                        }
-                    } else {
-                        arg5 = 0;
-                        arg6 = 0;
-                    }
-                    ret = do_syscall(env, 
-                                     env->gpr[2], 
-                                     env->gpr[4],
-                                     env->gpr[5],
-                                     env->gpr[6],
-                                     env->gpr[7],
-                                     arg5, 
-                                     arg6);
+            syscall_num = env->gpr[2] - 4000;
+            env->PC += 4;
+            if (syscall_num >= sizeof(mips_syscall_args)) {
+                ret = -ENOSYS;
+            } else {
+                int nb_args;
+                target_ulong sp_reg;
+                target_ulong arg5 = 0, arg6 = 0, arg7 = 0, arg8 = 0;
+
+                nb_args = mips_syscall_args[syscall_num];
+                sp_reg = env->gpr[29];
+                switch (nb_args) {
+                /* these arguments are taken from the stack */
+                case 8: arg8 = tgetl(sp_reg + 28);
+                case 7: arg7 = tgetl(sp_reg + 24);
+                case 6: arg6 = tgetl(sp_reg + 20);
+                case 5: arg5 = tgetl(sp_reg + 16);
+                default:
+                    break;
                 }
-                if ((unsigned int)ret >= (unsigned int)(-1133)) {
-                    env->gpr[7] = 1; /* error flag */
-                    ret = -ret;
-                    env->gpr[0] = ret;
-                    env->gpr[2] = ret;
-                } else {
-                    env->gpr[7] = 0; /* error flag */
-                    env->gpr[2] = ret;
-                }
+                ret = do_syscall(env, env->gpr[2],
+                                 env->gpr[4], env->gpr[5],
+                                 env->gpr[6], env->gpr[7],
+                                 arg5, arg6/*, arg7, arg8*/);
             }
+            if ((unsigned int)ret >= (unsigned int)(-1133)) {
+                env->gpr[7] = 1; /* error flag */
+                ret = -ret;
+            } else {
+                env->gpr[7] = 0; /* error flag */
+            }
+            env->gpr[2] = ret;
             break;
         case EXCP_TLBL:
         case EXCP_TLBS:
@@ -1478,9 +1502,9 @@ void cpu_loop(CPUM68KState *env)
                 }
             }
             break;
-        case EXCP_HALTED:
+        case EXCP_HALT_INSN:
             /* Semihosing syscall.  */
-            env->pc += 2;
+            env->pc += 4;
             do_m68k_semihosting(env, env->dregs[0]);
             break;
         case EXCP_LINEA:
@@ -1609,7 +1633,7 @@ void cpu_loop (CPUState *env)
             call_pal(env, (trapnr >> 6) | 0x80);
             break;
         case EXCP_CALL_PALP ... (EXCP_CALL_PALE - 1):
-            fprintf(stderr, "Priviledged call to PALcode\n");
+            fprintf(stderr, "Privileged call to PALcode\n");
             exit(1);
             break;
         case EXCP_DEBUG:
@@ -1642,11 +1666,12 @@ void usage(void)
            "usage: qemu-" TARGET_ARCH " [-h] [-g] [-d opts] [-L path] [-s size] [-cpu model] program [arguments...]\n"
            "Linux CPU emulator (compiled for %s emulation)\n"
            "\n"
-           "-h           print this help\n"
-           "-g port      wait gdb connection to port\n"
-           "-L path      set the elf interpreter prefix (default=%s)\n"
-           "-s size      set the stack size in bytes (default=%ld)\n"
-           "-cpu model   select CPU (-cpu ? for list)\n"
+           "-h                print this help\n"
+           "-g port           wait gdb connection to port\n"
+           "-L path           set the elf interpreter prefix (default=%s)\n"
+           "-s size           set the stack size in bytes (default=%ld)\n"
+           "-cpu model        select CPU (-cpu ? for list)\n"
+           "-drop-ld-preload  drop LD_PRELOAD for target process\n"
            "\n"
            "debug options:\n"
 #ifdef USE_CODE_COPY
@@ -1678,7 +1703,9 @@ int main(int argc, char **argv)
     int optind;
     const char *r;
     int gdbstub_port = 0;
-    
+    int drop_ld_preload = 0, environ_count = 0;
+    char **target_environ, **wrk, **dst;
+
     if (argc <= 1)
         usage();
 
@@ -1750,6 +1777,8 @@ int main(int argc, char **argv)
 #endif
                 _exit(1);
             }
+        } else if (!strcmp(r, "drop-ld-preload")) {
+            drop_ld_preload = 1;
         } else 
 #ifdef USE_CODE_COPY
         if (!strcmp(r, "no-code-copy")) {
@@ -1778,11 +1807,31 @@ int main(int argc, char **argv)
     env = cpu_init();
     global_env = env;
     
-    if (loader_exec(filename, argv+optind, environ, regs, info) != 0) {
-	printf("Error loading %s\n", filename);
-	_exit(1);
+    wrk = environ;
+    while (*(wrk++))
+        environ_count++;
+
+    target_environ = malloc((environ_count + 1) * sizeof(char *));
+    if (!target_environ)
+        abort();
+    for (wrk = environ, dst = target_environ; *wrk; wrk++) {
+        if (drop_ld_preload && !strncmp(*wrk, "LD_PRELOAD=", 11))
+            continue;
+        *(dst++) = strdup(*wrk);
+    }
+    dst = NULL; /* NULL terminate target_environ */
+
+    if (loader_exec(filename, argv+optind, target_environ, regs, info) != 0) {
+        printf("Error loading %s\n", filename);
+        _exit(1);
+    }
+
+    for (wrk = target_environ; *wrk; wrk++) {
+        free(*wrk);
     }
     
+    free(target_environ);
+
     if (loglevel) {
         page_dump(logfile);
     
@@ -1884,6 +1933,8 @@ int main(int argc, char **argv)
     cpu_x86_load_seg(env, R_FS, __USER_DS);
     cpu_x86_load_seg(env, R_GS, __USER_DS);
 
+    /* This hack makes Wine work... */
+    env->segs[R_FS].selector = 0;
 #elif defined(TARGET_ARM)
     {
         int i;
@@ -1894,10 +1945,6 @@ int main(int argc, char **argv)
         for(i = 0; i < 16; i++) {
             env->regs[i] = regs->uregs[i];
         }
-        ts->stack_base = info->start_stack;
-        ts->heap_base = info->brk;
-        /* This will be filled in on the first SYS_HEAPINFO call.  */
-        ts->heap_limit = 0;
     }
 #elif defined(TARGET_SPARC)
     {
@@ -1953,13 +2000,12 @@ int main(int argc, char **argv)
     }
 #elif defined(TARGET_M68K)
     {
-        m68k_def_t *def;
-        def = m68k_find_by_name("cfv4e");
-        if (def == NULL) {
+        if (cpu_model == NULL)
+            cpu_model = "any";
+        if (cpu_m68k_set_model(env, cpu_model)) {
             cpu_abort(cpu_single_env,
                       "Unable to find m68k CPU definition\n");
         }
-        cpu_m68k_register(cpu_single_env, def);
         env->pc = regs->pc;
         env->dregs[0] = regs->d0;
         env->dregs[1] = regs->d1;
@@ -1997,9 +2043,6 @@ int main(int argc, char **argv)
             env->gpr[i] = regs->regs[i];
         }
         env->PC = regs->cp0_epc;
-        if (env->CP0_Config1 & (1 << CP0C1_FP)) {
-            env->CP0_Status |= (1 << CP0St_CU1);
-        }
     }
 #elif defined(TARGET_SH4)
     {
@@ -2024,6 +2067,13 @@ int main(int argc, char **argv)
     }
 #else
 #error unsupported target CPU
+#endif
+
+#if defined(TARGET_ARM) || defined(TARGET_M68K)
+    ts->stack_base = info->start_stack;
+    ts->heap_base = info->brk;
+    /* This will be filled in on the first SYS_HEAPINFO call.  */
+    ts->heap_limit = 0;
 #endif
 
     if (gdbstub_port) {

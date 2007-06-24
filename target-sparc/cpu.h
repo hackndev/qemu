@@ -13,6 +13,8 @@
 #define TARGET_PAGE_BITS 12 /* XXX */
 #endif
 
+#define TARGET_PHYS_ADDR_BITS 64
+
 #include "cpu-defs.h"
 
 #include "softfloat.h"
@@ -40,12 +42,15 @@
 #define TT_DFAULT   0x09
 #define TT_TOVF     0x0a
 #define TT_EXTINT   0x10
+#define TT_CODE_ACCESS 0x21
+#define TT_DATA_ACCESS 0x29
 #define TT_DIV_ZERO 0x2a
 #define TT_NCP_INSN 0x24
 #define TT_TRAP     0x80
 #else
 #define TT_TFAULT   0x08
 #define TT_TMISS    0x09
+#define TT_CODE_ACCESS 0x0a
 #define TT_ILL_INSN 0x10
 #define TT_PRIV_INSN 0x11
 #define TT_NFPU_INSN 0x20
@@ -55,7 +60,8 @@
 #define TT_DIV_ZERO 0x28
 #define TT_DFAULT   0x30
 #define TT_DMISS    0x31
-#define TT_DPROT    0x32
+#define TT_DATA_ACCESS 0x32
+#define TT_DPROT    0x33
 #define TT_UNALIGNED 0x34
 #define TT_PRIV_ACT 0x37
 #define TT_EXTINT   0x40
@@ -224,10 +230,12 @@ typedef struct CPUSPARCState {
     uint64_t mgregs[8]; /* mmu general registers */
     uint64_t fprs;
     uint64_t tick_cmpr, stick_cmpr;
+    void *tick, *stick;
     uint64_t gsr;
     uint32_t gl; // UA2005
     /* UA 2005 hyperprivileged registers */
     uint64_t hpstate, htstate[MAXTL], hintp, htba, hver, hstick_cmpr, ssr;
+    void *hstick; // UA 2005
 #endif
 #if !defined(TARGET_SPARC64) && !defined(reg_T2)
     target_ulong t2;
@@ -287,6 +295,18 @@ void cpu_set_cwp(CPUSPARCState *env1, int new_cwp);
 #endif
 
 int cpu_sparc_signal_handler(int host_signum, void *pinfo, void *puc);
+void raise_exception(int tt);
+void do_unassigned_access(target_phys_addr_t addr, int is_write, int is_exec,
+                          int is_asi);
+void do_tick_set_count(void *opaque, uint64_t count);
+uint64_t do_tick_get_count(void *opaque);
+void do_tick_set_limit(void *opaque, uint64_t limit);
+
+#define CPUState CPUSPARCState
+#define cpu_init cpu_sparc_init
+#define cpu_exec cpu_sparc_exec
+#define cpu_gen_code cpu_sparc_gen_code
+#define cpu_signal_handler cpu_sparc_signal_handler
 
 #include "cpu-all.h"
 

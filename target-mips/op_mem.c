@@ -63,7 +63,7 @@ void glue(op_lw, MEMSUFFIX) (void)
 
 void glue(op_lwu, MEMSUFFIX) (void)
 {
-    T0 = glue(ldl, MEMSUFFIX)(T0);
+    T0 = (uint32_t)glue(ldl, MEMSUFFIX)(T0);
     RETURN();
 }
 
@@ -218,5 +218,15 @@ void glue(op_ldc1, MEMSUFFIX) (void)
 void glue(op_sdc1, MEMSUFFIX) (void)
 {
     glue(stq, MEMSUFFIX)(T0, DT0);
+    RETURN();
+}
+void glue(op_luxc1, MEMSUFFIX) (void)
+{
+    DT0 = glue(ldq, MEMSUFFIX)(T0 & ~0x7);
+    RETURN();
+}
+void glue(op_suxc1, MEMSUFFIX) (void)
+{
+    glue(stq, MEMSUFFIX)(T0 & ~0x7, DT0);
     RETURN();
 }

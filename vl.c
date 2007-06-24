@@ -153,7 +153,6 @@ int ram_size;
 int pit_min_timer_count = 0;
 int nb_nics;
 NICInfo nd_table[MAX_NICS];
-QEMUTimer *gui_timer;
 int vm_running;
 int rtc_utc = 1;
 int cirrus_vga_enabled = 1;
@@ -197,6 +196,7 @@ int nb_option_roms;
 int semihosting_enabled = 0;
 int autostart = 1;
 const char *qemu_name;
+int alt_grab = 0;
 #ifdef TARGET_SPARC
 unsigned int nb_prom_envs = 0;
 const char *prom_envs[MAX_PROM_ENVS];
@@ -563,10 +563,6 @@ int kbd_mouse_is_absolute(void)
 
     return qemu_put_mouse_event_current->qemu_put_mouse_event_absolute;
 }
-
-void (*kbd_mouse_set)(int x, int y, int on) = NULL;
-void (*kbd_cursor_define)(int width, int height, int bpp, int hot_x, int hot_y,
-                          uint8_t *image, uint8_t *mask) = NULL;
 
 void do_info_mice(void)
 {
@@ -1366,11 +1362,12 @@ static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
                     if (bs_table[i])
                         bdrv_commit(bs_table[i]);
                 }
+                if (mtd_bdrv)
+                    bdrv_commit(mtd_bdrv);
             }
             break;
         case 'b':
-            if (chr->chr_event)
-                chr->chr_event(chr->opaque, CHR_EVENT_BREAK);
+            qemu_chr_event(chr, CHR_EVENT_BREAK);
             break;
         case 'c':
             /* Switch to the next registered device */
@@ -2424,7 +2421,12 @@ static CharDriverState *qemu_chr_open_win_file(HANDLE fd_out)
     qemu_chr_reset(chr);
     return chr;
 }
-    
+
+static CharDriverState *qemu_chr_open_win_con(const char *filename)
+{
+    return qemu_chr_open_win_file(GetStdHandle(STD_OUTPUT_HANDLE));
+}
+
 static CharDriverState *qemu_chr_open_win_file_out(const char *file_out)
 {
     HANDLE fd_out;
@@ -2965,6 +2967,9 @@ CharDriverState *qemu_chr_open(const char *filename)
     } else
     if (strstart(filename, "pipe:", &p)) {
         return qemu_chr_open_win_pipe(p);
+    } else
+    if (strstart(filename, "con:", NULL)) {
+        return qemu_chr_open_win_con(filename);
     } else
     if (strstart(filename, "file:", &p)) {
         return qemu_chr_open_win_file_out(p);
@@ -4192,6 +4197,7 @@ static int net_client_init(const char *str)
         }
         nd->vlan = vlan;
         nb_nics++;
+        vlan->nb_guest_devs++;
         ret = 0;
     } else
     if (!strcmp(device, "none")) {
@@ -4204,6 +4210,7 @@ static int net_client_init(const char *str)
         if (get_param_value(buf, sizeof(buf), "hostname", p)) {
             pstrcpy(slirp_hostname, sizeof(slirp_hostname), buf);
         }
+        vlan->nb_host_devs++;
         ret = net_slirp_init(vlan);
     } else
 #endif
@@ -4214,6 +4221,7 @@ static int net_client_init(const char *str)
             fprintf(stderr, "tap: no interface name\n");
             return -1;
         }
+        vlan->nb_host_devs++;
         ret = tap_win32_init(vlan, ifname);
     } else
 #else
@@ -4221,6 +4229,7 @@ static int net_client_init(const char *str)
         char ifname[64];
         char setup_script[1024];
         int fd;
+        vlan->nb_host_devs++;
         if (get_param_value(buf, sizeof(buf), "fd", p) > 0) {
             fd = strtol(buf, NULL, 0);
             ret = -1;
@@ -4254,6 +4263,7 @@ static int net_client_init(const char *str)
             fprintf(stderr, "Unknown socket options: %s\n", p);
             return -1;
         }
+        vlan->nb_host_devs++;
     } else
     {
         fprintf(stderr, "Unknown network device: %s\n", device);
@@ -4309,9 +4319,13 @@ static int usb_device_add(const char *devname)
     } else if (!strcmp(devname, "mouse")) {
         dev = usb_mouse_init();
     } else if (!strcmp(devname, "tablet")) {
-	dev = usb_tablet_init();
+        dev = usb_tablet_init();
+    } else if (!strcmp(devname, "keyboard")) {
+        dev = usb_keyboard_init();
     } else if (strstart(devname, "disk:", &p)) {
         dev = usb_msd_init(p);
+    } else if (!strcmp(devname, "wacom-tablet")) {
+        dev = usb_wacom_init();
     } else {
         return -1;
     }
@@ -4483,10 +4497,12 @@ static void dumb_resize(DisplayState *ds, int w, int h)
 
 static void dumb_refresh(DisplayState *ds)
 {
+#if defined(CONFIG_SDL)
     vga_hw_update();
+#endif
 }
 
-void dumb_display_init(DisplayState *ds)
+static void dumb_display_init(DisplayState *ds)
 {
     ds->data = NULL;
     ds->linesize = 0;
@@ -5676,13 +5692,144 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id)
 
 #elif defined(TARGET_ARM)
 
-/* ??? Need to implement these.  */
 void cpu_save(QEMUFile *f, void *opaque)
 {
+    int i;
+    CPUARMState *env = (CPUARMState *)opaque;
+
+    for (i = 0; i < 16; i++) {
+        qemu_put_be32(f, env->regs[i]);
+    }
+    qemu_put_be32(f, cpsr_read(env));
+    qemu_put_be32(f, env->spsr);
+    for (i = 0; i < 6; i++) {
+        qemu_put_be32(f, env->banked_spsr[i]);
+        qemu_put_be32(f, env->banked_r13[i]);
+        qemu_put_be32(f, env->banked_r14[i]);
+    }
+    for (i = 0; i < 5; i++) {
+        qemu_put_be32(f, env->usr_regs[i]);
+        qemu_put_be32(f, env->fiq_regs[i]);
+    }
+    qemu_put_be32(f, env->cp15.c0_cpuid);
+    qemu_put_be32(f, env->cp15.c0_cachetype);
+    qemu_put_be32(f, env->cp15.c1_sys);
+    qemu_put_be32(f, env->cp15.c1_coproc);
+    qemu_put_be32(f, env->cp15.c2_base);
+    qemu_put_be32(f, env->cp15.c2_data);
+    qemu_put_be32(f, env->cp15.c2_insn);
+    qemu_put_be32(f, env->cp15.c3);
+    qemu_put_be32(f, env->cp15.c5_insn);
+    qemu_put_be32(f, env->cp15.c5_data);
+    for (i = 0; i < 8; i++) {
+        qemu_put_be32(f, env->cp15.c6_region[i]);
+    }
+    qemu_put_be32(f, env->cp15.c6_insn);
+    qemu_put_be32(f, env->cp15.c6_data);
+    qemu_put_be32(f, env->cp15.c9_insn);
+    qemu_put_be32(f, env->cp15.c9_data);
+    qemu_put_be32(f, env->cp15.c13_fcse);
+    qemu_put_be32(f, env->cp15.c13_context);
+    qemu_put_be32(f, env->cp15.c15_cpar);
+
+    qemu_put_be32(f, env->features);
+
+    if (arm_feature(env, ARM_FEATURE_VFP)) {
+        for (i = 0;  i < 16; i++) {
+            CPU_DoubleU u;
+            u.d = env->vfp.regs[i];
+            qemu_put_be32(f, u.l.upper);
+            qemu_put_be32(f, u.l.lower);
+        }
+        for (i = 0; i < 16; i++) {
+            qemu_put_be32(f, env->vfp.xregs[i]);
+        }
+
+        /* TODO: Should use proper FPSCR access functions.  */
+        qemu_put_be32(f, env->vfp.vec_len);
+        qemu_put_be32(f, env->vfp.vec_stride);
+    }
+
+    if (arm_feature(env, ARM_FEATURE_IWMMXT)) {
+        for (i = 0; i < 16; i++) {
+            qemu_put_be64(f, env->iwmmxt.regs[i]);
+        }
+        for (i = 0; i < 16; i++) {
+            qemu_put_be32(f, env->iwmmxt.cregs[i]);
+        }
+    }
 }
 
 int cpu_load(QEMUFile *f, void *opaque, int version_id)
 {
+    CPUARMState *env = (CPUARMState *)opaque;
+    int i;
+
+    if (version_id != 0)
+        return -EINVAL;
+
+    for (i = 0; i < 16; i++) {
+        env->regs[i] = qemu_get_be32(f);
+    }
+    cpsr_write(env, qemu_get_be32(f), 0xffffffff);
+    env->spsr = qemu_get_be32(f);
+    for (i = 0; i < 6; i++) {
+        env->banked_spsr[i] = qemu_get_be32(f);
+        env->banked_r13[i] = qemu_get_be32(f);
+        env->banked_r14[i] = qemu_get_be32(f);
+    }
+    for (i = 0; i < 5; i++) {
+        env->usr_regs[i] = qemu_get_be32(f);
+        env->fiq_regs[i] = qemu_get_be32(f);
+    }
+    env->cp15.c0_cpuid = qemu_get_be32(f);
+    env->cp15.c0_cachetype = qemu_get_be32(f);
+    env->cp15.c1_sys = qemu_get_be32(f);
+    env->cp15.c1_coproc = qemu_get_be32(f);
+    env->cp15.c2_base = qemu_get_be32(f);
+    env->cp15.c2_data = qemu_get_be32(f);
+    env->cp15.c2_insn = qemu_get_be32(f);
+    env->cp15.c3 = qemu_get_be32(f);
+    env->cp15.c5_insn = qemu_get_be32(f);
+    env->cp15.c5_data = qemu_get_be32(f);
+    for (i = 0; i < 8; i++) {
+        env->cp15.c6_region[i] = qemu_get_be32(f);
+    }
+    env->cp15.c6_insn = qemu_get_be32(f);
+    env->cp15.c6_data = qemu_get_be32(f);
+    env->cp15.c9_insn = qemu_get_be32(f);
+    env->cp15.c9_data = qemu_get_be32(f);
+    env->cp15.c13_fcse = qemu_get_be32(f);
+    env->cp15.c13_context = qemu_get_be32(f);
+    env->cp15.c15_cpar = qemu_get_be32(f);
+
+    env->features = qemu_get_be32(f);
+
+    if (arm_feature(env, ARM_FEATURE_VFP)) {
+        for (i = 0;  i < 16; i++) {
+            CPU_DoubleU u;
+            u.l.upper = qemu_get_be32(f);
+            u.l.lower = qemu_get_be32(f);
+            env->vfp.regs[i] = u.d;
+        }
+        for (i = 0; i < 16; i++) {
+            env->vfp.xregs[i] = qemu_get_be32(f);
+        }
+
+        /* TODO: Should use proper FPSCR access functions.  */
+        env->vfp.vec_len = qemu_get_be32(f);
+        env->vfp.vec_stride = qemu_get_be32(f);
+    }
+
+    if (arm_feature(env, ARM_FEATURE_IWMMXT)) {
+        for (i = 0; i < 16; i++) {
+            env->iwmmxt.regs[i] = qemu_get_be64(f);
+        }
+        for (i = 0; i < 16; i++) {
+            env->iwmmxt.cregs[i] = qemu_get_be32(f);
+        }
+    }
+
     return 0;
 }
 
@@ -6057,8 +6204,9 @@ QEMUMachine *find_machine(const char *name)
 
 void gui_update(void *opaque)
 {
-    display_state.dpy_refresh(&display_state);
-    qemu_mod_timer(gui_timer, GUI_REFRESH_INTERVAL + qemu_get_clock(rt_clock));
+    DisplayState *ds = opaque;
+    ds->dpy_refresh(ds);
+    qemu_mod_timer(ds->gui_timer, GUI_REFRESH_INTERVAL + qemu_get_clock(rt_clock));
 }
 
 struct vm_change_state_entry {
@@ -6319,7 +6467,6 @@ void main_loop_wait(int timeout)
     }
 #endif
     qemu_aio_poll();
-    qemu_bh_poll();
 
     if (vm_running) {
         qemu_run_timers(&active_timers[QEMU_TIMER_VIRTUAL], 
@@ -6327,10 +6474,15 @@ void main_loop_wait(int timeout)
         /* run dma transfers, if any */
         DMA_run();
     }
-    
+
     /* real time timers */
     qemu_run_timers(&active_timers[QEMU_TIMER_REALTIME], 
                     qemu_get_clock(rt_clock));
+
+    /* Check bottom-halves last in case any of the earlier events triggered
+       them.  */
+    qemu_bh_poll();
+    
 }
 
 static CPUState *cur_cpu;
@@ -6432,6 +6584,7 @@ void help(void)
            "-snapshot       write to temporary files instead of disk image files\n"
 #ifdef CONFIG_SDL
            "-no-frame       open SDL window without a frame and window decorations\n"
+           "-alt-grab       use Ctrl-Alt-Shift to grab mouse (instead of Ctrl-Alt)\n"
            "-no-quit        disable SDL window close capability\n"
 #endif
 #ifdef TARGET_I386
@@ -6615,6 +6768,7 @@ enum {
     QEMU_OPTION_loadvm,
     QEMU_OPTION_full_screen,
     QEMU_OPTION_no_frame,
+    QEMU_OPTION_alt_grab,
     QEMU_OPTION_no_quit,
     QEMU_OPTION_pidfile,
     QEMU_OPTION_no_kqemu,
@@ -6700,14 +6854,15 @@ const QEMUOption qemu_options[] = {
 #endif
     { "localtime", 0, QEMU_OPTION_localtime },
     { "std-vga", 0, QEMU_OPTION_std_vga },
-    { "echr", 1, QEMU_OPTION_echr },
-    { "monitor", 1, QEMU_OPTION_monitor },
-    { "serial", 1, QEMU_OPTION_serial },
-    { "parallel", 1, QEMU_OPTION_parallel },
+    { "echr", HAS_ARG, QEMU_OPTION_echr },
+    { "monitor", HAS_ARG, QEMU_OPTION_monitor },
+    { "serial", HAS_ARG, QEMU_OPTION_serial },
+    { "parallel", HAS_ARG, QEMU_OPTION_parallel },
     { "loadvm", HAS_ARG, QEMU_OPTION_loadvm },
     { "full-screen", 0, QEMU_OPTION_full_screen },
 #ifdef CONFIG_SDL
     { "no-frame", 0, QEMU_OPTION_no_frame },
+    { "alt-grab", 0, QEMU_OPTION_alt_grab },
     { "no-quit", 0, QEMU_OPTION_no_quit },
 #endif
     { "pidfile", HAS_ARG, QEMU_OPTION_pidfile },
@@ -6725,7 +6880,7 @@ const QEMUOption qemu_options[] = {
     { "show-cursor", 0, QEMU_OPTION_show_cursor },
     { "daemonize", 0, QEMU_OPTION_daemonize },
     { "option-rom", HAS_ARG, QEMU_OPTION_option_rom },
-#if defined(TARGET_ARM)
+#if defined(TARGET_ARM) || defined(TARGET_M68K)
     { "semihosting", 0, QEMU_OPTION_semihosting },
 #endif
     { "name", HAS_ARG, QEMU_OPTION_name },
@@ -6830,6 +6985,9 @@ void register_machines(void)
     qemu_register_machine(&shix_machine);
 #elif defined(TARGET_ALPHA)
     /* XXX: TODO */
+#elif defined(TARGET_M68K)
+    qemu_register_machine(&mcf5208evb_machine);
+    qemu_register_machine(&an5206_machine);
 #else
 #error unsupported CPU
 #endif
@@ -6993,6 +7151,7 @@ int main(int argc, char **argv)
     int usb_devices_index;
     int fds[2];
     const char *pid_file = NULL;
+    VLANState *vlan;
 
     LIST_INIT (&vm_change_state_head);
 #ifndef _WIN32
@@ -7423,6 +7582,9 @@ int main(int argc, char **argv)
             case QEMU_OPTION_no_frame:
                 no_frame = 1;
                 break;
+            case QEMU_OPTION_alt_grab:
+                alt_grab = 1;
+                break;
             case QEMU_OPTION_no_quit:
                 no_quit = 1;
                 break;
@@ -7612,6 +7774,18 @@ int main(int argc, char **argv)
         if (net_client_init(net_clients[i]) < 0)
             exit(1);
     }
+    for(vlan = first_vlan; vlan != NULL; vlan = vlan->next) {
+        if (vlan->nb_guest_devs == 0 && vlan->nb_host_devs == 0)
+            continue;
+        if (vlan->nb_guest_devs == 0) {
+            fprintf(stderr, "Invalid vlan (%d) with no nics\n", vlan->id);
+            exit(1);
+        }
+        if (vlan->nb_host_devs == 0)
+            fprintf(stderr,
+                    "Warning: vlan %d is not connected to host network\n",
+                    vlan->id);
+    }
 
 #ifdef TARGET_I386
     if (boot_device == 'n') {
@@ -7742,17 +7916,17 @@ int main(int argc, char **argv)
     init_ioports();
 
     /* terminal init */
+    memset(&display_state, 0, sizeof(display_state));
     if (nographic) {
+        /* nearly nothing to do */
         dumb_display_init(ds);
     } else if (vnc_display != NULL) {
-	vnc_display_init(ds, vnc_display);
+        vnc_display_init(ds, vnc_display);
     } else {
 #if defined(CONFIG_SDL)
         sdl_display_init(ds, full_screen, no_frame);
 #elif defined(CONFIG_COCOA)
         cocoa_display_init(ds, full_screen);
-#else
-        dumb_display_init(ds);
 #endif
     }
 
@@ -7820,8 +7994,10 @@ int main(int argc, char **argv)
         }
     }
 
-    gui_timer = qemu_new_timer(rt_clock, gui_update, NULL);
-    qemu_mod_timer(gui_timer, qemu_get_clock(rt_clock));
+    if (display_state.dpy_refresh) {
+        display_state.gui_timer = qemu_new_timer(rt_clock, gui_update, &display_state);
+        qemu_mod_timer(display_state.gui_timer, qemu_get_clock(rt_clock));
+    }
 
 #ifdef CONFIG_GDBSTUB
     if (use_gdbstub) {

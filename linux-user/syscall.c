@@ -144,6 +144,7 @@ type name (type1 arg1,type2 arg2,type3 arg3,type4 arg4,type5 arg5,type6 arg6)	\
 #define __NR_sys_getdents64 __NR_getdents64
 #define __NR_sys_rt_sigqueueinfo __NR_rt_sigqueueinfo
 #define __NR_sys_syslog __NR_syslog
+#define __NR_sys_tgkill __NR_tgkill
 
 #if defined(__alpha__) || defined (__ia64__) || defined(__x86_64__)
 #define __NR__llseek __NR_lseek
@@ -164,6 +165,7 @@ _syscall5(int, _llseek,  uint,  fd, ulong, hi, ulong, lo,
           loff_t *, res, uint, wh);
 _syscall3(int,sys_rt_sigqueueinfo,int,pid,int,sig,siginfo_t *,uinfo)
 _syscall3(int,sys_syslog,int,type,char*,bufp,int,len)
+_syscall3(int,sys_tgkill,int,tgid,int,pid,int,sig)
 #ifdef __NR_exit_group
 _syscall1(int,exit_group,int,error_code)
 #endif
@@ -181,10 +183,117 @@ extern int setresgid(gid_t, gid_t, gid_t);
 extern int getresgid(gid_t *, gid_t *, gid_t *);
 extern int setgroups(int, gid_t *);
 
+/*
+ * This list is the union of errno values overidden in asm-<arch>/errno.h
+ * minus the errnos that are not actually generic to all archs.
+ */
+static uint16_t host_to_target_errno_table[1200] = {
+    [EIDRM]		= TARGET_EIDRM,
+    [ECHRNG]		= TARGET_ECHRNG,
+    [EL2NSYNC]		= TARGET_EL2NSYNC,
+    [EL3HLT]		= TARGET_EL3HLT,
+    [EL3RST]		= TARGET_EL3RST,
+    [ELNRNG]		= TARGET_ELNRNG,
+    [EUNATCH]		= TARGET_EUNATCH,
+    [ENOCSI]		= TARGET_ENOCSI,
+    [EL2HLT]		= TARGET_EL2HLT,
+    [EDEADLK]		= TARGET_EDEADLK,
+    [ENOLCK]		= TARGET_ENOLCK,
+    [EBADE]		= TARGET_EBADE,
+    [EBADR]		= TARGET_EBADR,
+    [EXFULL]		= TARGET_EXFULL,
+    [ENOANO]		= TARGET_ENOANO,
+    [EBADRQC]		= TARGET_EBADRQC,
+    [EBADSLT]		= TARGET_EBADSLT,
+    [EBFONT]		= TARGET_EBFONT,
+    [ENOSTR]		= TARGET_ENOSTR,
+    [ENODATA]		= TARGET_ENODATA,
+    [ETIME]		= TARGET_ETIME,
+    [ENOSR]		= TARGET_ENOSR,
+    [ENONET]		= TARGET_ENONET,
+    [ENOPKG]		= TARGET_ENOPKG,
+    [EREMOTE]		= TARGET_EREMOTE,
+    [ENOLINK]		= TARGET_ENOLINK,
+    [EADV]		= TARGET_EADV,
+    [ESRMNT]		= TARGET_ESRMNT,
+    [ECOMM]		= TARGET_ECOMM,
+    [EPROTO]		= TARGET_EPROTO,
+    [EDOTDOT]		= TARGET_EDOTDOT,
+    [EMULTIHOP]		= TARGET_EMULTIHOP,
+    [EBADMSG]		= TARGET_EBADMSG,
+    [ENAMETOOLONG]	= TARGET_ENAMETOOLONG,
+    [EOVERFLOW]		= TARGET_EOVERFLOW,
+    [ENOTUNIQ]		= TARGET_ENOTUNIQ,
+    [EBADFD]		= TARGET_EBADFD,
+    [EREMCHG]		= TARGET_EREMCHG,
+    [ELIBACC]		= TARGET_ELIBACC,
+    [ELIBBAD]		= TARGET_ELIBBAD,
+    [ELIBSCN]		= TARGET_ELIBSCN,
+    [ELIBMAX]		= TARGET_ELIBMAX,
+    [ELIBEXEC]		= TARGET_ELIBEXEC,
+    [EILSEQ]		= TARGET_EILSEQ,
+    [ENOSYS]		= TARGET_ENOSYS,
+    [ELOOP]		= TARGET_ELOOP,
+    [ERESTART]		= TARGET_ERESTART,
+    [ESTRPIPE]		= TARGET_ESTRPIPE,
+    [ENOTEMPTY]		= TARGET_ENOTEMPTY,
+    [EUSERS]		= TARGET_EUSERS,
+    [ENOTSOCK]		= TARGET_ENOTSOCK,
+    [EDESTADDRREQ]	= TARGET_EDESTADDRREQ,
+    [EMSGSIZE]		= TARGET_EMSGSIZE,
+    [EPROTOTYPE]	= TARGET_EPROTOTYPE,
+    [ENOPROTOOPT]	= TARGET_ENOPROTOOPT,
+    [EPROTONOSUPPORT]	= TARGET_EPROTONOSUPPORT,
+    [ESOCKTNOSUPPORT]	= TARGET_ESOCKTNOSUPPORT,
+    [EOPNOTSUPP]	= TARGET_EOPNOTSUPP,
+    [EPFNOSUPPORT]	= TARGET_EPFNOSUPPORT,
+    [EAFNOSUPPORT]	= TARGET_EAFNOSUPPORT,
+    [EADDRINUSE]	= TARGET_EADDRINUSE,
+    [EADDRNOTAVAIL]	= TARGET_EADDRNOTAVAIL,
+    [ENETDOWN]		= TARGET_ENETDOWN,
+    [ENETUNREACH]	= TARGET_ENETUNREACH,
+    [ENETRESET]		= TARGET_ENETRESET,
+    [ECONNABORTED]	= TARGET_ECONNABORTED,
+    [ECONNRESET]	= TARGET_ECONNRESET,
+    [ENOBUFS]		= TARGET_ENOBUFS,
+    [EISCONN]		= TARGET_EISCONN,
+    [ENOTCONN]		= TARGET_ENOTCONN,
+    [EUCLEAN]		= TARGET_EUCLEAN,
+    [ENOTNAM]		= TARGET_ENOTNAM,
+    [ENAVAIL]		= TARGET_ENAVAIL,
+    [EISNAM]		= TARGET_EISNAM,
+    [EREMOTEIO]		= TARGET_EREMOTEIO,
+    [ESHUTDOWN]		= TARGET_ESHUTDOWN,
+    [ETOOMANYREFS]	= TARGET_ETOOMANYREFS,
+    [ETIMEDOUT]		= TARGET_ETIMEDOUT,
+    [ECONNREFUSED]	= TARGET_ECONNREFUSED,
+    [EHOSTDOWN]		= TARGET_EHOSTDOWN,
+    [EHOSTUNREACH]	= TARGET_EHOSTUNREACH,
+    [EALREADY]		= TARGET_EALREADY,
+    [EINPROGRESS]	= TARGET_EINPROGRESS,
+    [ESTALE]		= TARGET_ESTALE,
+    [ECANCELED]		= TARGET_ECANCELED,
+    [ENOMEDIUM]		= TARGET_ENOMEDIUM,
+    [EMEDIUMTYPE]	= TARGET_EMEDIUMTYPE,
+    [ENOKEY]		= TARGET_ENOKEY,
+    [EKEYEXPIRED]	= TARGET_EKEYEXPIRED,
+    [EKEYREVOKED]	= TARGET_EKEYREVOKED,
+    [EKEYREJECTED]	= TARGET_EKEYREJECTED,
+    [EOWNERDEAD]	= TARGET_EOWNERDEAD,
+    [ENOTRECOVERABLE]	= TARGET_ENOTRECOVERABLE,
+	};
+
+static inline int host_to_target_errno(int err)
+{
+    if(host_to_target_errno_table[err])
+        return host_to_target_errno_table[err];
+    return err;
+}
+
 static inline long get_errno(long ret)
 {
     if (ret == -1)
-        return -errno;
+        return -host_to_target_errno(errno);
     else
         return ret;
 }
@@ -1123,11 +1232,323 @@ static struct shm_region {
     uint32_t	size;
 } shm_regions[N_SHM_REGIONS];
 
+struct target_ipc_perm
+{
+    target_long __key;
+    target_ulong uid;
+    target_ulong gid;
+    target_ulong cuid;
+    target_ulong cgid;
+    unsigned short int mode;
+    unsigned short int __pad1;
+    unsigned short int __seq;
+    unsigned short int __pad2;
+    target_ulong __unused1;
+    target_ulong __unused2;
+};
+
+struct target_semid_ds
+{
+  struct target_ipc_perm sem_perm;
+  target_ulong sem_otime;
+  target_ulong __unused1;
+  target_ulong sem_ctime;
+  target_ulong __unused2;
+  target_ulong sem_nsems;
+  target_ulong __unused3;
+  target_ulong __unused4;
+};
+
+static inline void target_to_host_ipc_perm(struct ipc_perm *host_ip,
+                                           target_ulong target_addr)
+{
+    struct target_ipc_perm *target_ip;
+    struct target_semid_ds *target_sd;
+
+    lock_user_struct(target_sd, target_addr, 1);
+    target_ip=&(target_sd->sem_perm);
+    host_ip->__key = tswapl(target_ip->__key);
+    host_ip->uid = tswapl(target_ip->uid);
+    host_ip->gid = tswapl(target_ip->gid);
+    host_ip->cuid = tswapl(target_ip->cuid);
+    host_ip->cgid = tswapl(target_ip->cgid);
+    host_ip->mode = tswapl(target_ip->mode);
+    unlock_user_struct(target_sd, target_addr, 0);
+}
+
+static inline void host_to_target_ipc_perm(target_ulong target_addr,
+                                           struct ipc_perm *host_ip)
+{
+    struct target_ipc_perm *target_ip;
+    struct target_semid_ds *target_sd;
+
+    lock_user_struct(target_sd, target_addr, 0);
+    target_ip = &(target_sd->sem_perm);
+    target_ip->__key = tswapl(host_ip->__key);
+    target_ip->uid = tswapl(host_ip->uid);
+    target_ip->gid = tswapl(host_ip->gid);
+    target_ip->cuid = tswapl(host_ip->cuid);
+    target_ip->cgid = tswapl(host_ip->cgid);
+    target_ip->mode = tswapl(host_ip->mode);
+    unlock_user_struct(target_sd, target_addr, 1);
+}
+
+static inline void target_to_host_semid_ds(struct semid_ds *host_sd,
+                                          target_ulong target_addr)
+{
+    struct target_semid_ds *target_sd;
+
+    lock_user_struct(target_sd, target_addr, 1);
+    target_to_host_ipc_perm(&(host_sd->sem_perm),target_addr);
+    host_sd->sem_nsems = tswapl(target_sd->sem_nsems);
+    host_sd->sem_otime = tswapl(target_sd->sem_otime);
+    host_sd->sem_ctime = tswapl(target_sd->sem_ctime);
+    unlock_user_struct(target_sd, target_addr, 0);
+}
+
+static inline void host_to_target_semid_ds(target_ulong target_addr,
+                                           struct semid_ds *host_sd)
+{
+    struct target_semid_ds *target_sd;
+
+    lock_user_struct(target_sd, target_addr, 0);
+    host_to_target_ipc_perm(target_addr,&(host_sd->sem_perm));
+    target_sd->sem_nsems = tswapl(host_sd->sem_nsems);
+    target_sd->sem_otime = tswapl(host_sd->sem_otime);
+    target_sd->sem_ctime = tswapl(host_sd->sem_ctime);
+    unlock_user_struct(target_sd, target_addr, 1);
+}
+
 union semun {
 	int val;
-	struct senid_ds *buf;
+	struct semid_ds *buf;
 	unsigned short *array;
 };
+
+union target_semun {
+	int val;
+	target_long buf;
+	unsigned short int *array;
+};
+
+static inline void target_to_host_semun(unsigned long cmd,
+                                        union semun *host_su,
+                                        target_ulong target_addr,
+                                        struct semid_ds *ds)
+{
+    union target_semun *target_su;
+
+    switch( cmd ) {
+	case IPC_STAT:
+	case IPC_SET:
+           lock_user_struct(target_su, target_addr, 1);
+	   target_to_host_semid_ds(ds,target_su->buf);
+	   host_su->buf = ds;
+           unlock_user_struct(target_su, target_addr, 0);
+	   break;
+	case GETVAL:
+	case SETVAL:
+           lock_user_struct(target_su, target_addr, 1);
+	   host_su->val = tswapl(target_su->val);
+           unlock_user_struct(target_su, target_addr, 0);
+	   break;
+	case GETALL:
+	case SETALL:
+           lock_user_struct(target_su, target_addr, 1);
+	   *host_su->array = tswap16(*target_su->array);
+           unlock_user_struct(target_su, target_addr, 0);
+	   break;
+	default:
+           gemu_log("semun operation not fully supported: %d\n", (int)cmd);
+    }
+}
+
+static inline void host_to_target_semun(unsigned long cmd,
+                                        target_ulong target_addr,
+                                        union semun *host_su,
+                                        struct semid_ds *ds)
+{
+    union target_semun *target_su;
+
+    switch( cmd ) {
+	case IPC_STAT:
+	case IPC_SET:
+           lock_user_struct(target_su, target_addr, 0);
+	   host_to_target_semid_ds(target_su->buf,ds);
+           unlock_user_struct(target_su, target_addr, 1);
+	   break;
+	case GETVAL:
+	case SETVAL:
+           lock_user_struct(target_su, target_addr, 0);
+	   target_su->val = tswapl(host_su->val);
+           unlock_user_struct(target_su, target_addr, 1);
+	   break;
+	case GETALL:
+	case SETALL:
+           lock_user_struct(target_su, target_addr, 0);
+	   *target_su->array = tswap16(*host_su->array);
+           unlock_user_struct(target_su, target_addr, 1);
+	   break;
+        default:
+           gemu_log("semun operation not fully supported: %d\n", (int)cmd);
+    }
+}
+
+static inline long do_semctl(long first, long second, long third, long ptr)
+{
+    union semun arg;
+    struct semid_ds dsarg;
+    int cmd = third&0xff;
+    long ret = 0;
+
+    switch( cmd ) {
+	case GETVAL:
+            target_to_host_semun(cmd,&arg,ptr,&dsarg);
+            ret = get_errno(semctl(first, second, cmd, arg));
+            host_to_target_semun(cmd,ptr,&arg,&dsarg);
+            break;
+	case SETVAL:
+            target_to_host_semun(cmd,&arg,ptr,&dsarg);
+            ret = get_errno(semctl(first, second, cmd, arg));
+            host_to_target_semun(cmd,ptr,&arg,&dsarg);
+            break;
+	case GETALL:
+            target_to_host_semun(cmd,&arg,ptr,&dsarg);
+            ret = get_errno(semctl(first, second, cmd, arg));
+            host_to_target_semun(cmd,ptr,&arg,&dsarg);
+            break;
+	case SETALL:
+            target_to_host_semun(cmd,&arg,ptr,&dsarg);
+            ret = get_errno(semctl(first, second, cmd, arg));
+            host_to_target_semun(cmd,ptr,&arg,&dsarg);
+            break;
+	case IPC_STAT:
+            target_to_host_semun(cmd,&arg,ptr,&dsarg);
+            ret = get_errno(semctl(first, second, cmd, arg));
+            host_to_target_semun(cmd,ptr,&arg,&dsarg);
+            break;
+	case IPC_SET:
+            target_to_host_semun(cmd,&arg,ptr,&dsarg);
+            ret = get_errno(semctl(first, second, cmd, arg));
+            host_to_target_semun(cmd,ptr,&arg,&dsarg);
+            break;
+    default:
+            ret = get_errno(semctl(first, second, cmd, arg));
+    }
+
+    return ret;
+}
+
+struct target_msqid_ds
+{
+  struct target_ipc_perm msg_perm;
+  target_ulong msg_stime;
+  target_ulong __unused1;
+  target_ulong msg_rtime;
+  target_ulong __unused2;
+  target_ulong msg_ctime;
+  target_ulong __unused3;
+  target_ulong __msg_cbytes;
+  target_ulong msg_qnum;
+  target_ulong msg_qbytes;
+  target_ulong msg_lspid;
+  target_ulong msg_lrpid;
+  target_ulong __unused4;
+  target_ulong __unused5;
+};
+
+static inline void target_to_host_msqid_ds(struct msqid_ds *host_md,
+                                          target_ulong target_addr)
+{
+    struct target_msqid_ds *target_md;
+
+    lock_user_struct(target_md, target_addr, 1);
+    target_to_host_ipc_perm(&(host_md->msg_perm),target_addr);
+    host_md->msg_stime = tswapl(target_md->msg_stime);
+    host_md->msg_rtime = tswapl(target_md->msg_rtime);
+    host_md->msg_ctime = tswapl(target_md->msg_ctime);
+    host_md->__msg_cbytes = tswapl(target_md->__msg_cbytes);
+    host_md->msg_qnum = tswapl(target_md->msg_qnum);
+    host_md->msg_qbytes = tswapl(target_md->msg_qbytes);
+    host_md->msg_lspid = tswapl(target_md->msg_lspid);
+    host_md->msg_lrpid = tswapl(target_md->msg_lrpid);
+    unlock_user_struct(target_md, target_addr, 0);
+}
+
+static inline void host_to_target_msqid_ds(target_ulong target_addr,
+                                           struct msqid_ds *host_md)
+{
+    struct target_msqid_ds *target_md;
+
+    lock_user_struct(target_md, target_addr, 0);
+    host_to_target_ipc_perm(target_addr,&(host_md->msg_perm));
+    target_md->msg_stime = tswapl(host_md->msg_stime);
+    target_md->msg_rtime = tswapl(host_md->msg_rtime);
+    target_md->msg_ctime = tswapl(host_md->msg_ctime);
+    target_md->__msg_cbytes = tswapl(host_md->__msg_cbytes);
+    target_md->msg_qnum = tswapl(host_md->msg_qnum);
+    target_md->msg_qbytes = tswapl(host_md->msg_qbytes);
+    target_md->msg_lspid = tswapl(host_md->msg_lspid);
+    target_md->msg_lrpid = tswapl(host_md->msg_lrpid);
+    unlock_user_struct(target_md, target_addr, 1);
+}
+
+static inline long do_msgctl(long first, long second, long ptr)
+{
+    struct msqid_ds dsarg;
+    int cmd = second&0xff;
+    long ret = 0;
+    switch( cmd ) {
+    case IPC_STAT:
+    case IPC_SET:
+        target_to_host_msqid_ds(&dsarg,ptr);
+        ret = get_errno(msgctl(first, cmd, &dsarg));
+        host_to_target_msqid_ds(ptr,&dsarg);
+    default:
+        ret = get_errno(msgctl(first, cmd, &dsarg));
+    }
+    return ret;
+}
+
+struct target_msgbuf {
+	target_ulong mtype;
+	char	mtext[1];
+};
+
+static inline long do_msgsnd(long msqid, long msgp, long msgsz, long msgflg)
+{
+    struct target_msgbuf *target_mb;
+    struct msgbuf *host_mb;
+    long ret = 0;
+
+    lock_user_struct(target_mb,msgp,0);
+    host_mb = malloc(msgsz+sizeof(long));
+    host_mb->mtype = tswapl(target_mb->mtype);
+    memcpy(host_mb->mtext,target_mb->mtext,msgsz);
+    ret = get_errno(msgsnd(msqid, host_mb, msgsz, msgflg));
+    free(host_mb);
+    unlock_user_struct(target_mb, msgp, 0);
+
+    return ret;
+}
+
+static inline long do_msgrcv(long msqid, long msgp, long msgsz, long msgtype, long msgflg)
+{
+    struct target_msgbuf *target_mb;
+    struct msgbuf *host_mb;
+    long ret = 0;
+
+    lock_user_struct(target_mb, msgp, 0);
+    host_mb = malloc(msgsz+sizeof(long));
+    ret = get_errno(msgrcv(msqid, host_mb, msgsz, 1, msgflg));
+    if (ret > 0)
+    	memcpy(target_mb->mtext, host_mb->mtext, ret);
+    target_mb->mtype = tswapl(host_mb->mtype);
+    free(host_mb);
+    unlock_user_struct(target_mb, msgp, 0);
+
+    return ret;
+}
 
 /* ??? This only works with linear mappings.  */
 static long do_ipc(long call, long first, long second, long third,
@@ -1152,8 +1573,7 @@ static long do_ipc(long call, long first, long second, long third,
         break;
 
     case IPCOP_semctl:
-        ret = get_errno(semctl(first, second, third, ((union semun*)ptr)->val));
-
+        ret = do_semctl(first, second, third, ptr);
         break;
 
     case IPCOP_semtimedop:
@@ -1166,27 +1586,27 @@ static long do_ipc(long call, long first, long second, long third,
 		break;
 
 	case IPCOP_msgsnd:
-		ret = get_errno(msgsnd(first, (struct msgbuf *) ptr, second, third));
+		ret = do_msgsnd(first, ptr, second, third);
 		break;
 
 	case IPCOP_msgctl:
-		ret = get_errno(msgctl(first, second, (struct msqid_ds *) ptr));
+        	ret = do_msgctl(first, second, ptr);
 		break;
 
 	case IPCOP_msgrcv:
-		{
-			struct ipc_kludge
-			{
-				void *__unbounded msgp;
-				long int msgtyp;
-			};
+                {
+                      struct ipc_kludge
+                      {
+                              void *__unbounded msgp;
+                              long int msgtyp;
+                      };
 
-			struct ipc_kludge *foo = (struct ipc_kludge *) ptr;
-			struct msgbuf *msgp = (struct msgbuf *) foo->msgp;
+                      struct ipc_kludge *foo = (struct ipc_kludge *) ptr;
+                      struct msgbuf *msgp = (struct msgbuf *) foo->msgp;
 
-			ret = get_errno(msgrcv(first, msgp, second, 0, third));
+                      ret = do_msgrcv(first, (long)msgp, second, 0, third);
 
-		}
+                }
 		break;
 
     case IPCOP_shmat:
@@ -1750,7 +2170,9 @@ int do_fork(CPUState *env, unsigned int flags, unsigned long newsp)
         new_env->dregs[0] = 0;
         /* ??? is this sufficient?  */
 #elif defined(TARGET_MIPS)
-        printf ("HELPME: %s:%d\n", __FILE__, __LINE__);
+        if (!newsp)
+            newsp = env->gpr[29];
+        new_env->gpr[29] = newsp;
 #elif defined(TARGET_PPC)
         if (!newsp)
             newsp = env->gpr[1];
@@ -2336,8 +2758,13 @@ long do_syscall(void *cpu_env, int num, long arg1, long arg2, long arg3,
             int host_pipe[2];
             ret = get_errno(pipe(host_pipe));
             if (!is_error(ret)) {
+#if defined(TARGET_MIPS)
+		((CPUMIPSState*)cpu_env)->gpr[3] = host_pipe[1];
+		ret = host_pipe[0];
+#else
                 tput32(arg1, host_pipe[0]);
                 tput32(arg1 + 4, host_pipe[1]);
+#endif
             }
         }
         break;
@@ -2429,7 +2856,7 @@ long do_syscall(void *cpu_env, int num, long arg1, long arg2, long arg3,
 #ifdef TARGET_NR_sigaction
     case TARGET_NR_sigaction:
         {
-	#if !defined(TARGET_MIPS)
+#if !defined(TARGET_MIPS)
             struct target_old_sigaction *old_act;
             struct target_sigaction act, oact, *pact;
             if (arg2) {
@@ -2452,7 +2879,7 @@ long do_syscall(void *cpu_env, int num, long arg1, long arg2, long arg3,
                 old_act->sa_restorer = oact.sa_restorer;
                 unlock_user_struct(old_act, arg3, 1);
             }
-	#else
+#else
 	    struct target_sigaction act, oact, *pact, *old_act;
 
 	    if (arg2) {
@@ -2478,7 +2905,7 @@ long do_syscall(void *cpu_env, int num, long arg1, long arg2, long arg3,
 		old_act->sa_mask.sig[3] = 0;
 		unlock_user_struct(old_act, arg3, 1);
 	    }
-	#endif
+#endif
         }
         break;
 #endif
@@ -3106,9 +3533,13 @@ long do_syscall(void *cpu_env, int num, long arg1, long arg2, long arg3,
         do_stat:
             if (!is_error(ret)) {
                 struct target_stat *target_st;
-                
+
                 lock_user_struct(target_st, arg2, 0);
+#if defined(TARGET_MIPS)
+                target_st->st_dev = tswap32(st.st_dev);
+#else
                 target_st->st_dev = tswap16(st.st_dev);
+#endif
                 target_st->st_ino = tswapl(st.st_ino);
 #if defined(TARGET_PPC) || defined(TARGET_MIPS)
                 target_st->st_mode = tswapl(st.st_mode); /* XXX: check this */
@@ -3119,8 +3550,14 @@ long do_syscall(void *cpu_env, int num, long arg1, long arg2, long arg3,
                 target_st->st_uid = tswap16(st.st_uid);
                 target_st->st_gid = tswap16(st.st_gid);
 #endif
+#if defined(TARGET_MIPS)
+		/* If this is the same on PPC, then just merge w/ the above ifdef */
+                target_st->st_nlink = tswapl(st.st_nlink);
+                target_st->st_rdev = tswapl(st.st_rdev);
+#else
                 target_st->st_nlink = tswap16(st.st_nlink);
                 target_st->st_rdev = tswap16(st.st_rdev);
+#endif
                 target_st->st_size = tswapl(st.st_size);
                 target_st->st_blksize = tswapl(st.st_blksize);
                 target_st->st_blocks = tswapl(st.st_blocks);
@@ -4169,10 +4606,21 @@ long do_syscall(void *cpu_env, int num, long arg1, long arg2, long arg3,
       break;
 #endif
 
+#ifdef TARGET_NR_tgkill
+    case TARGET_NR_tgkill:
+	ret = get_errno(sys_tgkill((int)arg1, (int)arg2, (int)arg3));
+	break;
+#endif
+
+#ifdef TARGET_NR_set_robust_list
+    case TARGET_NR_set_robust_list:
+	goto unimplemented_nowarn;
+#endif
+
     default:
     unimplemented:
         gemu_log("qemu: Unsupported syscall: %d\n", num);
-#if defined(TARGET_NR_setxattr) || defined(TARGET_NR_get_thread_area) || defined(TARGET_NR_getdomainname)
+#if defined(TARGET_NR_setxattr) || defined(TARGET_NR_get_thread_area) || defined(TARGET_NR_getdomainname) || defined(TARGET_NR_set_robust_list)
     unimplemented_nowarn:
 #endif
         ret = -ENOSYS;

@@ -2,6 +2,8 @@
 
 //#define DEBUG_PCALL
 //#define DEBUG_MMU
+//#define DEBUG_UNALIGNED
+//#define DEBUG_UNASSIGNED
 
 void raise_exception(int tt)
 {
@@ -150,6 +152,8 @@ void helper_ld_asi(int asi, int size, int sign)
     uint32_t ret = 0;
 
     switch (asi) {
+    case 2: /* SuperSparc MXCC registers */
+        break;
     case 3: /* MMU probe */
 	{
 	    int mmulev;
@@ -178,7 +182,30 @@ void helper_ld_asi(int asi, int size, int sign)
 #endif
 	}
 	break;
-    case 0x20 ... 0x2f: /* MMU passthrough */
+    case 9: /* Supervisor code access */
+        switch(size) {
+        case 1:
+            ret = ldub_code(T0);
+            break;
+        case 2:
+            ret = lduw_code(T0 & ~1);
+            break;
+        default:
+        case 4:
+            ret = ldl_code(T0 & ~3);
+            break;
+        case 8:
+            ret = ldl_code(T0 & ~3);
+            T0 = ldl_code((T0 + 4) & ~3);
+            break;
+        }
+        break;
+    case 0xc: /* I-cache tag */
+    case 0xd: /* I-cache data */
+    case 0xe: /* D-cache tag */
+    case 0xf: /* D-cache data */
+        break;
+    case 0x20: /* MMU passthrough */
         switch(size) {
         case 1:
             ret = ldub_phys(T0);
@@ -196,7 +223,33 @@ void helper_ld_asi(int asi, int size, int sign)
 	    break;
         }
 	break;
+    case 0x2e: /* MMU passthrough, 0xexxxxxxxx */
+    case 0x2f: /* MMU passthrough, 0xfxxxxxxxx */
+        switch(size) {
+        case 1:
+            ret = ldub_phys((target_phys_addr_t)T0
+                            | ((target_phys_addr_t)(asi & 0xf) << 32));
+            break;
+        case 2:
+            ret = lduw_phys((target_phys_addr_t)(T0 & ~1)
+                            | ((target_phys_addr_t)(asi & 0xf) << 32));
+            break;
+        default:
+        case 4:
+            ret = ldl_phys((target_phys_addr_t)(T0 & ~3)
+                           | ((target_phys_addr_t)(asi & 0xf) << 32));
+            break;
+        case 8:
+            ret = ldl_phys((target_phys_addr_t)(T0 & ~3)
+                           | ((target_phys_addr_t)(asi & 0xf) << 32));
+            T0 = ldl_phys((target_phys_addr_t)((T0 + 4) & ~3)
+                           | ((target_phys_addr_t)(asi & 0xf) << 32));
+	    break;
+        }
+	break;
+    case 0x21 ... 0x2d: /* MMU passthrough, unassigned */
     default:
+        do_unassigned_access(T0, 0, 0, 1);
 	ret = 0;
 	break;
     }
@@ -206,6 +259,8 @@ void helper_ld_asi(int asi, int size, int sign)
 void helper_st_asi(int asi, int size, int sign)
 {
     switch(asi) {
+    case 2: /* SuperSparc MXCC registers */
+        break;
     case 3: /* MMU flush */
 	{
 	    int mmulev;
@@ -270,18 +325,28 @@ void helper_st_asi(int asi, int size, int sign)
 #endif
 	    return;
 	}
+    case 0xc: /* I-cache tag */
+    case 0xd: /* I-cache data */
+    case 0xe: /* D-cache tag */
+    case 0xf: /* D-cache data */
+    case 0x10: /* I/D-cache flush page */
+    case 0x11: /* I/D-cache flush segment */
+    case 0x12: /* I/D-cache flush region */
+    case 0x13: /* I/D-cache flush context */
+    case 0x14: /* I/D-cache flush user */
+        break;
     case 0x17: /* Block copy, sta access */
 	{
 	    // value (T1) = src
 	    // address (T0) = dst
 	    // copy 32 bytes
-	    uint32_t src = T1, dst = T0;
-	    uint8_t temp[32];
+            unsigned int i;
+            uint32_t src = T1 & ~3, dst = T0 & ~3, temp;
 	    
-	    tswap32s(&src);
-
-	    cpu_physical_memory_read(src, (void *) &temp, 32);
-	    cpu_physical_memory_write(dst, (void *) &temp, 32);
+            for (i = 0; i < 32; i += 4, src += 4, dst += 4) {
+                temp = ldl_kernel(src);
+                stl_kernel(dst, temp);
+            }
 	}
 	return;
     case 0x1f: /* Block fill, stda access */
@@ -289,19 +354,17 @@ void helper_st_asi(int asi, int size, int sign)
 	    // value (T1, T2)
 	    // address (T0) = dst
 	    // fill 32 bytes
-	    int i;
-	    uint32_t dst = T0;
-	    uint64_t val;
-	    
-	    val = (((uint64_t)T1) << 32) | T2;
-	    tswap64s(&val);
+            unsigned int i;
+            uint32_t dst = T0 & 7;
+            uint64_t val;
 
-	    for (i = 0; i < 32; i += 8, dst += 8) {
-		cpu_physical_memory_write(dst, (void *) &val, 8);
-	    }
+            val = (((uint64_t)T1) << 32) | T2;
+
+            for (i = 0; i < 32; i += 8, dst += 8)
+                stq_kernel(dst, val);
 	}
 	return;
-    case 0x20 ... 0x2f: /* MMU passthrough */
+    case 0x20: /* MMU passthrough */
 	{
             switch(size) {
             case 1:
@@ -321,7 +384,40 @@ void helper_st_asi(int asi, int size, int sign)
             }
 	}
 	return;
+    case 0x2e: /* MMU passthrough, 0xexxxxxxxx */
+    case 0x2f: /* MMU passthrough, 0xfxxxxxxxx */
+	{
+            switch(size) {
+            case 1:
+                stb_phys((target_phys_addr_t)T0
+                         | ((target_phys_addr_t)(asi & 0xf) << 32), T1);
+                break;
+            case 2:
+                stw_phys((target_phys_addr_t)(T0 & ~1)
+                            | ((target_phys_addr_t)(asi & 0xf) << 32), T1);
+                break;
+            case 4:
+            default:
+                stl_phys((target_phys_addr_t)(T0 & ~3)
+                           | ((target_phys_addr_t)(asi & 0xf) << 32), T1);
+                break;
+            case 8:
+                stl_phys((target_phys_addr_t)(T0 & ~3)
+                           | ((target_phys_addr_t)(asi & 0xf) << 32), T1);
+                stl_phys((target_phys_addr_t)((T0 + 4) & ~3)
+                           | ((target_phys_addr_t)(asi & 0xf) << 32), T1);
+                break;
+            }
+	}
+	return;
+    case 0x31: /* Ross RT620 I-cache flush */
+    case 0x36: /* I-cache flash clear */
+    case 0x37: /* D-cache flash clear */
+        break;
+    case 9: /* Supervisor code access, XXX */
+    case 0x21 ... 0x2d: /* MMU passthrough, unassigned */
     default:
+        do_unassigned_access(T0, 1, 0, 1);
 	return;
     }
 }
@@ -440,6 +536,7 @@ void helper_ld_asi(int asi, int size, int sign)
     case 0x5f: // D-MMU demap, WO
     case 0x77: // Interrupt vector, WO
     default:
+        do_unassigned_access(T0, 0, 0, 1);
 	ret = 0;
 	break;
     }
@@ -655,6 +752,7 @@ void helper_st_asi(int asi, int size, int sign)
     case 0x8a: // Primary no-fault LE, RO
     case 0x8b: // Secondary no-fault LE, RO
     default:
+        do_unassigned_access(T0, 1, 0, 1);
 	return;
     }
 }
@@ -945,10 +1043,10 @@ static void do_unaligned_access(target_ulong addr, int is_write, int is_user,
 static void do_unaligned_access(target_ulong addr, int is_write, int is_user,
                                 void *retaddr)
 {
-    /* Uncomment the following line to enable mem_address_not_aligned traps */
-    /* Not enabled yet because of bugs in OpenBIOS */
-    //raise_exception(TT_UNALIGNED);
-    //printf("Unaligned access to 0x%x from 0x%x\n", addr, env->pc);
+#ifdef DEBUG_UNALIGNED
+    printf("Unaligned access to 0x%x from 0x%x\n", addr, env->pc);
+#endif
+    raise_exception(TT_UNALIGNED);
 }
 
 /* try to fill the TLB and return an exception if error. If retaddr is
@@ -984,4 +1082,85 @@ void tlb_fill(target_ulong addr, int is_write, int is_user, void *retaddr)
     env = saved_env;
 }
 
+#endif
+
+#ifndef TARGET_SPARC64
+void do_unassigned_access(target_phys_addr_t addr, int is_write, int is_exec,
+                          int is_asi)
+{
+    CPUState *saved_env;
+
+    /* XXX: hack to restore env in all cases, even if not called from
+       generated code */
+    saved_env = env;
+    env = cpu_single_env;
+    if (env->mmuregs[3]) /* Fault status register */
+	env->mmuregs[3] = 1; /* overflow (not read before another fault) */
+    if (is_asi)
+        env->mmuregs[3] |= 1 << 16;
+    if (env->psrs)
+        env->mmuregs[3] |= 1 << 5;
+    if (is_exec)
+        env->mmuregs[3] |= 1 << 6;
+    if (is_write)
+        env->mmuregs[3] |= 1 << 7;
+    env->mmuregs[3] |= (5 << 2) | 2;
+    env->mmuregs[4] = addr; /* Fault address register */
+    if ((env->mmuregs[0] & MMU_E) && !(env->mmuregs[0] & MMU_NF)) {
+#ifdef DEBUG_UNASSIGNED
+        printf("Unassigned mem access to " TARGET_FMT_plx " from " TARGET_FMT_lx
+               "\n", addr, env->pc);
+#endif
+        if (is_exec)
+            raise_exception(TT_CODE_ACCESS);
+        else
+            raise_exception(TT_DATA_ACCESS);
+    }
+    env = saved_env;
+}
+#else
+void do_unassigned_access(target_phys_addr_t addr, int is_write, int is_exec,
+                          int is_asi)
+{
+#ifdef DEBUG_UNASSIGNED
+    CPUState *saved_env;
+
+    /* XXX: hack to restore env in all cases, even if not called from
+       generated code */
+    saved_env = env;
+    env = cpu_single_env;
+    printf("Unassigned mem access to " TARGET_FMT_plx " from " TARGET_FMT_lx "\n",
+           addr, env->pc);
+    env = saved_env;
+#endif
+    if (is_exec)
+        raise_exception(TT_CODE_ACCESS);
+    else
+        raise_exception(TT_DATA_ACCESS);
+}
+#endif
+
+#ifdef TARGET_SPARC64
+void do_tick_set_count(void *opaque, uint64_t count)
+{
+#if !defined(CONFIG_USER_ONLY)
+    ptimer_set_count(opaque, -count);
+#endif
+}
+
+uint64_t do_tick_get_count(void *opaque)
+{
+#if !defined(CONFIG_USER_ONLY)
+    return -ptimer_get_count(opaque);
+#else
+    return 0;
+#endif
+}
+
+void do_tick_set_limit(void *opaque, uint64_t limit)
+{
+#if !defined(CONFIG_USER_ONLY)
+    ptimer_set_limit(opaque, -limit, 0);
+#endif
+}
 #endif
