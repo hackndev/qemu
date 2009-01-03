@@ -666,7 +666,7 @@ static void ld_init(int ram_size, int vga_ram_size, int boot_device,
     uint32_t ld_ram_int = 0x00040000;
     struct pxa2xx_state_s *cpu;
 
-    cpu = pxa270_init(ds, "pxa270-c0");
+    cpu = pxa270_init(ld_ram, ds, "pxa270-c0");
 
     /* Setup memory */
     if (ram_size < ld_ram + ld_rom + ld_ram_int) {
@@ -674,7 +674,7 @@ static void ld_init(int ram_size, int vga_ram_size, int boot_device,
                         ld_ram + ld_rom + ld_ram_int);
         exit(1);
     }
-    cpu_register_physical_memory(PXA2XX_RAM_BASE, ld_ram, IO_MEM_RAM);
+    cpu_register_physical_memory(PXA2XX_SDRAM_BASE, ld_ram, IO_MEM_RAM);
 
     cpu_register_physical_memory(0, ld_rom, ld_ram | IO_MEM_ROM);
 
@@ -699,14 +699,14 @@ static void ld_init(int ram_size, int vga_ram_size, int boot_device,
 
     /* Setup initial (reset) machine state */
     cpu->env->regs[15] = 0;
-    //cpu->env->regs[15] = PXA2XX_RAM_BASE;
+    //cpu->env->regs[15] = PXA2XX_SDRAM_BASE;
 
     memset(phys_ram_base, 0, ld_ram);
     memset(phys_ram_base + ld_ram, 0, ld_rom);
     load_image("brahma-bootrom", phys_ram_base + ld_ram);
 
     //arm_load_kernel(cpu->env, ld_ram, kernel_filename, kernel_cmdline,
-    //                initrd_filename, 835, PXA2XX_RAM_BASE);
+    //                initrd_filename, 835, PXA2XX_SDRAM_BASE);
  
 }
 
@@ -720,7 +720,7 @@ static void t650_init(int ram_size, int vga_ram_size, int boot_device,
     uint32_t t650_ram_int = 0x00040000;
     struct pxa2xx_state_s *cpu;
 
-    cpu = pxa270_init(ds, "pxa270-c0");
+    cpu = pxa270_init(t650_ram, ds, "pxa270-c0");
 
     /* Setup memory */
     if (ram_size < t650_ram + t650_rom + t650_ram_int) {
@@ -728,7 +728,7 @@ static void t650_init(int ram_size, int vga_ram_size, int boot_device,
                         t650_ram + t650_rom);
         exit(1);
     }
-    cpu_register_physical_memory(PXA2XX_RAM_BASE, t650_ram, IO_MEM_RAM);
+    cpu_register_physical_memory(PXA2XX_SDRAM_BASE, t650_ram, IO_MEM_RAM);
 
     cpu_register_physical_memory(0, 0x800, t650_ram | IO_MEM_ROM);
 
@@ -738,7 +738,7 @@ static void t650_init(int ram_size, int vga_ram_size, int boot_device,
 
     /* Setup initial (reset) machine state */
     cpu->env->regs[15] = 0;
-    //cpu->env->regs[15] = PXA2XX_RAM_BASE;
+    //cpu->env->regs[15] = PXA2XX_SDRAM_BASE;
     
     mdoc_init();
 
@@ -750,7 +750,7 @@ static void t650_init(int ram_size, int vga_ram_size, int boot_device,
     load_image("palmt650.rom", phys_ram_base + t650_ram);
 
     //arm_load_kernel(cpu->env, t650_ram, kernel_filename, kernel_cmdline,
-    //                initrd_filename, 909, PXA2XX_RAM_BASE);
+    //                initrd_filename, 909, PXA2XX_SDRAM_BASE);
  
 }
 
@@ -763,7 +763,7 @@ static void tc_init(int ram_size, int vga_ram_size, int boot_device,
     uint32_t tc_rom = 0x01000000;
     struct pxa2xx_state_s *cpu;
 
-    cpu = pxa255_init(ds);
+    cpu = pxa255_init(tc_ram, ds);
 
     /* Setup memory */
     if (ram_size < tc_ram + tc_rom) {
@@ -771,7 +771,7 @@ static void tc_init(int ram_size, int vga_ram_size, int boot_device,
                         tc_ram + tc_rom);
         exit(1);
     }
-    cpu_register_physical_memory(PXA2XX_RAM_BASE, tc_ram, IO_MEM_RAM);
+    cpu_register_physical_memory(PXA2XX_SDRAM_BASE, tc_ram, IO_MEM_RAM);
 
     cpu_register_physical_memory(0, tc_rom, tc_ram | IO_MEM_ROM);
 
@@ -791,14 +791,14 @@ static void tc_init(int ram_size, int vga_ram_size, int boot_device,
 
     /* Setup initial (reset) machine state */
     cpu->env->regs[15] = 0;
-//    cpu->env->regs[15] = PXA2XX_RAM_BASE;
+//    cpu->env->regs[15] = PXA2XX_SDRAM_BASE;
 
     memset(phys_ram_base, 0, tc_ram);
     memset(phys_ram_base + tc_ram, 0, tc_rom);
     load_image("../../../BOOTROM/palmtc.rom", phys_ram_base + tc_ram);
 
     arm_load_kernel(cpu->env, tc_ram, kernel_filename, kernel_cmdline,
-            initrd_filename, 918 /* THIS IS ARM_ID!! */, PXA2XX_RAM_BASE);
+            initrd_filename, 918 /* THIS IS ARM_ID!! */, PXA2XX_SDRAM_BASE);
  
 }
 
@@ -812,7 +812,7 @@ static void tx_init(int ram_size, int vga_ram_size, int boot_device,
     uint32_t tx_ram_int = 0x00040000;
     struct pxa2xx_state_s *cpu;
 
-    cpu = pxa270_init(ds, "pxa270-c5");
+    cpu = pxa270_init(tx_ram, ds, "pxa270-c5");
 
     /* Setup memory */
     if (ram_size < tx_ram + tx_rom + tx_ram_int) {
@@ -820,7 +820,7 @@ static void tx_init(int ram_size, int vga_ram_size, int boot_device,
                         tx_ram + tx_rom + tx_ram_int);
         exit(1);
     }
-    cpu_register_physical_memory(PXA2XX_RAM_BASE, tx_ram, IO_MEM_RAM);
+    cpu_register_physical_memory(PXA2XX_SDRAM_BASE, tx_ram, IO_MEM_RAM);
 
     cpu_register_physical_memory(0, tx_rom, tx_ram | IO_MEM_ROM);
 
@@ -842,14 +842,14 @@ static void tx_init(int ram_size, int vga_ram_size, int boot_device,
 
     /* Setup initial (reset) machine state */
     cpu->env->regs[15] = 0;
-//    cpu->env->regs[15] = PXA2XX_RAM_BASE;
+//    cpu->env->regs[15] = PXA2XX_SDRAM_BASE;
 
     memset(phys_ram_base, 0, tx_ram);
     memset(phys_ram_base + tx_ram, 0, tx_rom);
     load_image("../../../BOOTROM/palmtx.rom", phys_ram_base + tx_ram);
 
     arm_load_kernel(cpu->env, tx_ram, kernel_filename, kernel_cmdline,
-                    initrd_filename, 885, PXA2XX_RAM_BASE);
+                    initrd_filename, 885, PXA2XX_SDRAM_BASE);
  
 }
 
